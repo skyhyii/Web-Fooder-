@@ -1,0 +1,26 @@
+# ============================================================
+#  FooDer NLP Requirements — Bagian: NLP + Sentiment + Summarization
+# ============================================================
+
+# Web Framework
+fastapi
+uvicorn[standard]
+
+# Data Validation
+pydantic
+
+# Data Processing
+pandas
+numpy
+
+# Machine Learning (TF-IDF Fallback)
+scikit-learn
+
+# IndoBERT (Primary Sentiment Model)
+transformers
+
+# Indonesian NLP
+PySastrawi     # Stemmer bahasa Indonesia
+
+# Utilities
+python-dotenv
