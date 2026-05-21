@@ -1,3 +1,5 @@
+const API_BASE_URL = "http://127.0.0.1:8000";
+
 const pages = document.querySelectorAll(".page");
 const navButtons = document.querySelectorAll(".nav");
 
@@ -6,11 +8,19 @@ const rejectBtn = document.querySelector(".reject-btn");
 const likeBtn = document.querySelector(".like-btn");
 const starBtn = document.querySelector(".star-btn");
 
-const foods = [
+let foods = [];
+let foodIndex = 0;
+let startX = 0;
+let currentX = 0;
+let isDragging = false;
+
+const fallbackFoods = [
   {
+    id: 1,
     name: "Spicy Tteokbokki",
     restaurant: "Seoul Street Kitchen",
     img: "https://images.unsplash.com/photo-1603133872878-684f208fb84b?auto=format&fit=crop&w=900&q=80",
+    image: "https://images.unsplash.com/photo-1603133872878-684f208fb84b?auto=format&fit=crop&w=900&q=80",
     rating: "4.8",
     reviews: "1284 reviews",
     distance: "0.6km",
@@ -19,9 +29,11 @@ const foods = [
     tags: ["Spicy", "Savory", "Halal-friendly"]
   },
   {
+    id: 2,
     name: "Double Smash Burger",
     restaurant: "Patty Garage",
     img: "https://images.unsplash.com/photo-1550547660-d9450f859349?auto=format&fit=crop&w=900&q=80",
+    image: "https://images.unsplash.com/photo-1550547660-d9450f859349?auto=format&fit=crop&w=900&q=80",
     rating: "4.6",
     reviews: "942 reviews",
     distance: "1.2km",
@@ -30,44 +42,47 @@ const foods = [
     tags: ["Cheesy", "Beef", "Crispy"]
   },
   {
+    id: 3,
     name: "Tonkotsu Ramen",
     restaurant: "Mengoku Ramen Bar",
     img: "https://images.unsplash.com/photo-1569718212165-3a8278d5f624?auto=format&fit=crop&w=900&q=80",
+    image: "https://images.unsplash.com/photo-1569718212165-3a8278d5f624?auto=format&fit=crop&w=900&q=80",
     rating: "4.7",
     reviews: "2103 reviews",
     distance: "2.1km",
     insight: "Praised for rich creamy broth, tender toppings, and warm comfort taste.",
     cuisine: "Japanese · $$",
     tags: ["Savory", "Ramen", "Comfort"]
-  },
-  {
-    name: "Salmon Sushi Platter",
-    restaurant: "Aoi Sushi",
-    img: "https://images.unsplash.com/photo-1579871494447-9811cf80d66c?auto=format&fit=crop&w=900&q=80",
-    rating: "4.9",
-    reviews: "876 reviews",
-    distance: "3.4km",
-    insight: "Users love the fresh salmon, clean taste, and beautiful plating.",
-    cuisine: "Japanese · $$$",
-    tags: ["Fresh", "Sushi", "Salmon"]
-  },
-  {
-    name: "Nasi Goreng Spesial",
-    restaurant: "Warung Bahari",
-    img: "https://images.unsplash.com/photo-1512058564366-18510be2db19?auto=format&fit=crop&w=900&q=80",
-    rating: "4.7",
-    reviews: "1052 reviews",
-    distance: "0.9km",
-    insight: "Users love the smoky aroma and authentic Indonesian taste.",
-    cuisine: "Indonesian · $",
-    tags: ["Local", "Savory", "Affordable"]
   }
 ];
 
-let foodIndex = 0;
-let startX = 0;
-let currentX = 0;
-let isDragging = false;
+async function fetchFoods() {
+  try {
+    const response = await fetch(`${API_BASE_URL}/foods`);
+    const data = await response.json();
+
+    foods = data.map((food) => ({
+      ...food,
+      img: food.img || food.image || "https://picsum.photos/300/200",
+      image: food.image || food.img || "https://picsum.photos/300/200",
+      reviews: food.reviews || "0 reviews",
+      cuisine: food.cuisine || "Food · $$",
+      tags: food.tags || ["Recommended"],
+      insight: food.insight || "This food is recommended based on rating and user preference.",
+      distance: typeof food.distance === "number" ? `${food.distance}km` : food.distance
+    }));
+
+    if (foods.length === 0) {
+      foods = fallbackFoods;
+    }
+
+    updateFoodCard();
+  } catch (error) {
+    console.error("Backend not connected, using fallback data:", error);
+    foods = fallbackFoods;
+    updateFoodCard();
+  }
+}
 
 function showPage(pageId) {
   pages.forEach((page) => page.classList.remove("active"));
@@ -87,24 +102,23 @@ function showPage(pageId) {
     navButtons[pageNavMap[pageId]].classList.add("active");
   }
 
-  window.scrollTo({
-    top: 0,
-    behavior: "smooth"
-  });
+  window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
 window.showPage = showPage;
 
 function updateFoodCard() {
+  if (!foodCard || foods.length === 0) return;
+
   const food = foods[foodIndex];
 
-  document.querySelector(".food-card img").src = food.img;
+  document.querySelector(".food-card img").src = food.img || food.image;
   document.querySelector(".food-card h2").textContent = food.name;
   document.querySelector(".restaurant").textContent = food.restaurant;
   document.querySelector(".price-tag").textContent = food.cuisine;
 
   const infoItems = document.querySelectorAll(".food-info span");
-  infoItems[0].textContent = `⭐ ${food.rating} (${food.reviews.split(" ")[0]})`;
+  infoItems[0].textContent = `⭐ ${food.rating} (${String(food.reviews).split(" ")[0]})`;
   infoItems[1].textContent = `📍 ${food.distance}`;
 
   document.querySelector(".review-box p:last-child").textContent = food.insight;
@@ -127,6 +141,28 @@ function updateFoodCard() {
   }, 50);
 }
 
+async function saveSwipe(action) {
+  if (foods.length === 0) return;
+
+  try {
+    await fetch(`${API_BASE_URL}/swipe`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        user_id: 1,
+        food_id: foods[foodIndex].id || foodIndex + 1,
+        action: action
+      })
+    });
+
+    console.log(`Swipe ${action} saved`);
+  } catch (error) {
+    console.error("Failed to save swipe:", error);
+  }
+}
+
 function nextFood() {
   foodIndex++;
 
@@ -138,6 +174,8 @@ function nextFood() {
 }
 
 function swipeRight() {
+  saveSwipe("like");
+
   foodCard.style.transition = "0.35s ease";
   foodCard.style.transform = "translateX(520px) rotate(25deg)";
 
@@ -147,6 +185,8 @@ function swipeRight() {
 }
 
 function swipeLeft() {
+  saveSwipe("dislike");
+
   foodCard.style.transition = "0.35s ease";
   foodCard.style.transform = "translateX(-520px) rotate(-25deg)";
 
@@ -224,15 +264,7 @@ if (starBtn) {
   });
 }
 
-function openFoodDetail(
-  name,
-  restaurant,
-  image,
-  rating,
-  distance,
-  insight,
-  cuisine
-) {
+function openFoodDetail(name, restaurant, image, rating, distance, insight, cuisine) {
   showPage("detailPage");
 
   const hero = document.querySelector(".detail-hero");
@@ -269,42 +301,30 @@ function openFoodDetail(
   if (title.includes("burger")) {
     document.querySelector(".desc").textContent =
       "A juicy double smash burger with crispy edges, melted cheese, fresh vegetables, and a soft toasted bun.";
-
     updateDetailTags(["Cheesy", "Beef", "Crispy"]);
     updateKeywords(["juicy", "crispy", "cheesy", "beefy"]);
     updateScore("74");
   } else if (title.includes("ramen")) {
     document.querySelector(".desc").textContent =
       "Warm Japanese ramen served with rich broth, noodles, egg, and savory toppings.";
-
     updateDetailTags(["Savory", "Comfort", "Japanese"]);
     updateKeywords(["broth", "creamy", "warm", "egg"]);
     updateScore("81");
   } else if (title.includes("sushi")) {
     document.querySelector(".desc").textContent =
       "Fresh salmon sushi platter served with rice, seaweed, soy sauce, and wasabi.";
-
     updateDetailTags(["Fresh", "Sushi", "Salmon"]);
     updateKeywords(["fresh", "clean", "salmon", "pretty"]);
     updateScore("78");
   } else if (title.includes("nasi")) {
     document.querySelector(".desc").textContent =
       "Classic Indonesian fried rice with smoky aroma, savory seasoning, egg, and local spices.";
-
     updateDetailTags(["Local", "Savory", "Affordable"]);
     updateKeywords(["smoky", "local", "savory", "filling"]);
     updateScore("86");
-  } else if (title.includes("pizza")) {
-    document.querySelector(".desc").textContent =
-      "Wood-fired pizza topped with fresh tomato sauce, melted cheese, basil, and crispy crust.";
-
-    updateDetailTags(["Cheesy", "Italian", "Wood-fired"]);
-    updateKeywords(["cheese", "basil", "crispy", "saucy"]);
-    updateScore("72");
   } else {
     document.querySelector(".desc").textContent =
       "Chewy rice cakes simmered in a sweet-and-spicy gochujang sauce with fish cake and scallions.";
-
     updateDetailTags(["Spicy", "Savory", "Halal-friendly"]);
     updateKeywords(["spicy", "chewy", "affordable", "saucy", "addictive"]);
     updateScore("67");
@@ -315,6 +335,8 @@ window.openFoodDetail = openFoodDetail;
 
 function updateDetailTags(tags) {
   const tagContainer = document.querySelector(".detail-tags");
+  if (!tagContainer) return;
+
   tagContainer.innerHTML = "";
 
   tags.forEach((tag) => {
@@ -326,6 +348,8 @@ function updateDetailTags(tags) {
 
 function updateKeywords(keywords) {
   const keywordContainer = document.querySelector(".keywords");
+  if (!keywordContainer) return;
+
   keywordContainer.innerHTML = "";
 
   keywords.forEach((keyword) => {
@@ -337,6 +361,8 @@ function updateKeywords(keywords) {
 
 function updateScore(score) {
   const scoreTitle = document.querySelector(".score-card h4");
+  if (!scoreTitle) return;
+
   scoreTitle.innerHTML = `${score} <span>/ 100 match for you</span>`;
 }
 
@@ -392,3 +418,5 @@ saveButtons.forEach((button) => {
     button.classList.toggle("saved");
   });
 });
+
+fetchFoods();
