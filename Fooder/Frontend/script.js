@@ -58,15 +58,15 @@ const fallbackFoods = [
 
 async function fetchFoods() {
   try {
-    const response = await fetch(`${API_BASE_URL}/foods`);
+    const response = await fetch(`${API_BASE_URL}/restaurants`);
     const data = await response.json();
 
     foods = data.map((food) => ({
       ...food,
       img: food.img || food.image || "https://picsum.photos/300/200",
       image: food.image || food.img || "https://picsum.photos/300/200",
-      reviews: food.reviews || "0 reviews",
-      cuisine: food.cuisine || "Food · $$",
+      reviews: food.count_rating || "0 reviews",
+      cuisine: food.origin_country || "Food · $$",
       tags: food.tags || ["Recommended"],
       insight: food.insight || "This food is recommended based on rating and user preference.",
       distance: typeof food.distance === "number" ? `${food.distance}km` : food.distance
@@ -113,8 +113,8 @@ function updateFoodCard() {
   const food = foods[foodIndex];
 
   document.querySelector(".food-card img").src = food.img || food.image;
-  document.querySelector(".food-card h2").textContent = food.name;
-  document.querySelector(".restaurant").textContent = food.restaurant;
+  document.querySelector(".food-card h2").textContent = food.food_name;
+  document.querySelector(".restaurant").textContent = food.restaurant_name;
   document.querySelector(".price-tag").textContent = food.cuisine;
 
   const infoItems = document.querySelectorAll(".food-info span");

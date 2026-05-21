@@ -1,7 +1,7 @@
 from playwright.sync_api import sync_playwright
 from bs4 import BeautifulSoup
-from database.db_zikra import SessionLocal
-from database.models_zikra import Restaurant, Review
+from database.db import SessionLocal
+from database.models import Restaurant, Review
 
 
 class GoogleMapsScraper:

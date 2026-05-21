@@ -1,6 +1,11 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+from backend.api import restaurants_zikra
+from backend.api.restaurants import get_restaurants
+from backend.database.db import SessionLocal
+from backend.database.models import Restaurant
+
 
 app = FastAPI(title="FooDer Backend")
 
@@ -12,22 +17,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-foods = [
-    {
-        "id": 1,
-        "name": "Nasi Goreng",
-        "restaurant": "Warung Nusantara",
-        "rating": 4.8,
-        "distance": 1.2
-    },
-    {
-        "id": 2,
-        "name": "Ramen",
-        "restaurant": "Tokyo Bowl",
-        "rating": 4.7,
-        "distance": 2.5
-    }
-]
 
 swipe_history = []
 
@@ -36,13 +25,12 @@ class SwipeRequest(BaseModel):
     food_id: int
     action: str
 
+app.include_router(restaurants_zikra.router)
+
 @app.get("/")
 def home():
     return {"message": "FooDer Backend Running"}
 
-@app.get("/foods")
-def get_foods():
-    return foods
 
 @app.post("/swipe")
 def save_swipe(data: SwipeRequest):
@@ -103,28 +91,57 @@ def login_user(data: UserLogin):
 
 @app.get("/recommendations")
 def get_recommendations():
-    sorted_foods = sorted(foods, key=lambda x: x["rating"], reverse=True)
-    return sorted_foods
+    session = SessionLocal()
+    foods = session.query(Restaurant).order_by(Restaurant.rating.desc()).all()
+    result = []
+    for food in foods:
+        result.append({
+            "id": food.id,
+            "food_name": food.food_name,
+            "rating": food.rating
+        })
+    session.close()
+    return result
 
 @app.get("/nearby")
 def get_nearby():
-    sorted_foods = sorted(foods, key=lambda x: x["distance"])
-    return sorted_foods
+    session = SessionLocal()
+    foods = session.query(Restaurant).order_by(Restaurant.distance.asc()).all()
+    result = []
+    for food in foods:
+        result.append({
+            "id": food.id,
+            "food_name": food.food_name,
+            "distance": food.distance
+        })
+    session.close()
+    return result
 
 @app.get("/user/preferences/{user_id}")
 def get_user_preferences(user_id: int):
-    user_swipes = [item for item in swipe_history if item["user_id"] == user_id]
-
+    session = SessionLocal()
+    user_swipes = [
+        item for item in swipe_history
+        if item["user_id"] == user_id
+    ]
     liked_food_ids = [
-        item["food_id"] for item in user_swipes if item["action"] == "like"
+        item["food_id"]
+        for item in user_swipes
+        if item["action"] == "like"
     ]
-
-    liked_foods = [
-        food for food in foods if food["id"] in liked_food_ids
-    ]
-
+    liked_foods = session.query(Restaurant).filter(
+        Restaurant.id.in_(liked_food_ids)
+    ).all()
+    result = []
+    for food in liked_foods:
+        result.append({
+            "id": food.id,
+            "food_name": food.food_name,
+            "description": food.description
+        })
+    session.close()
     return {
         "user_id": user_id,
         "total_swipes": len(user_swipes),
-        "liked_foods": liked_foods
+        "liked_foods": result
     }

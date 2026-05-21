@@ -30,8 +30,9 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from utils.text_cleaning import clean_text
 
 # ── Konfigurasi ───────────────────────────────────────────────────────────────
-DATA_PATH = "app/data/sentiment_dataset.csv"    # dataset sentimen Indonesia
-MODEL_DIR = "app/models"
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+DATA_PATH = os.path.join(BASE_DIR, "datasets", "Sentiment Analysis Indonesia.csv")    # dataset sentimen Indonesia
+MODEL_DIR = os.path.join(BASE_DIR, "backend", "sentiment", "app", "models")
 MODEL_PATH = os.path.join(MODEL_DIR, "sentiment_model.pkl")
 VECTORIZER_PATH = os.path.join(MODEL_DIR, "tfidf_vectorizer.pkl")
 
