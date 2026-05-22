@@ -7,6 +7,20 @@ class Category(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, unique=True)
+    
+class User(Base):
+    __tablename__ = "users"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String)
+    username = Column(String)
+    email = Column(String)
+    password = Column(String)
+    age = Column(Integer)
+    phone = Column(String) 
+    city = Column(String)
+    allergy = Column(Text)
+    gender = Column(String)
 
 class Restaurant(Base):
     __tablename__ = "restaurants"
