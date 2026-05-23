@@ -11,6 +11,7 @@ const starBtn = document.querySelector(".star-btn");
 const dailyPreferenceModal = document.getElementById("dailyPreferenceModal");
 
 let foods = [];
+let users = [];
 let foodIndex = 0;
 let startX = 0;
 let currentX = 0;
@@ -80,11 +81,11 @@ async function fetchFoods() {
       id: food.id || index + 1,
       food_name: food.food_name || food.name || "Food Name",
       restaurant_name: food.restaurant_name || food.restaurant || "Restaurant Name",
-      img: food.img || food.image || "https://picsum.photos/500/700",
-      image: food.image || food.img || "https://picsum.photos/500/700",
+      img: food.img_url || food.image || "https://picsum.photos/500/700",
+      image: food.img_url || food.img || "https://picsum.photos/500/700",
       rating: food.rating || "4.5",
       reviews: food.reviews || food.count_rating || "0 reviews",
-      cuisine: food.cuisine || food.origin_country || "Food · $$",
+      cuisine: food.origin_country || food.cuisine || "Food · $$",
       tags: food.tags || ["Recommended"],
       insight: food.insight || "This food is recommended based on rating and user preference.",
       distance: typeof food.distance === "number" ? `${food.distance}km` : food.distance || "1.0km"
@@ -100,6 +101,46 @@ async function fetchFoods() {
     foods = fallbackFoods;
     updateFoodCard();
   }
+}
+
+async function fetchUsers() {
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/users`);
+    const data = await response.json();
+    users = data;
+    console.log(users);
+    // ambil user pertama
+    renderUserProfile(users[0]);
+  } catch (error) {
+    console.error("Failed to fetch users:", error);
+  }
+}
+
+/* PAGE USER */
+
+function renderUserProfile(user) {
+
+  document.getElementById("profileName").innerText =
+    user.username;
+
+  document.getElementById("profileBio").innerText =
+    `${user.role || "Foodie"} · ${user.city || "Indonesia"}`;
+
+  document.getElementById("profileAvatar").innerText =
+    user.username.charAt(0).toUpperCase();
+
+  document.getElementById("likedCount").innerText =
+    user.like || 0;
+
+  document.getElementById("swipeCount").innerText =
+    user.swipe || 0;
+
+  document.getElementById("matchPercent").innerText =
+    `${user.match || 0}%`;
+
+  document.getElementById("allergies").innerText =
+    user.allergy || None;
 }
 
 /* PAGE NAVIGATION */
@@ -581,3 +622,4 @@ saveButtons.forEach((button) => {
 
 document.body.classList.add("auth-active");
 fetchFoods();
+fetchUsers();

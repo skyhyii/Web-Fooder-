@@ -26,7 +26,8 @@ def get_restaurants():
             "count_rating": item.count_rating,
             "food_name": item.food_name,
             "description": item.description,
-            "origin_coutry": item.origin_country
+            "origin_coutry": item.origin_country,
+            "img_url": item.img_url
         })
 
     session.close()

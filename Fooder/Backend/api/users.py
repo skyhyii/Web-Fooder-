@@ -28,7 +28,9 @@ def get_users():
             "city": item.city,
             "allergy": item.allergy,
             "phone": item.phone,
-            "gender": item.gender
+            "gender": item.gender,
+            "like": item.like,
+            "swipe": item.swipe
         })
 
     session.close()

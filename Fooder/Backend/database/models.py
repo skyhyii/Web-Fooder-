@@ -21,6 +21,8 @@ class User(Base):
     city = Column(String)
     allergy = Column(Text)
     gender = Column(String)
+    like = Column(Integer)
+    swipe = Column(Integer)
 
 class Restaurant(Base):
     __tablename__ = "restaurants"
@@ -36,6 +38,7 @@ class Restaurant(Base):
     food_name = Column(String)
     description = Column(Text)
     origin_country = Column(String)
+    img_url = Column(Text)
     
     reviews = relationship("Review", back_populates="restaurant")
 

@@ -480,52 +480,77 @@
     <!-- PROFILE -->
     <section class="page" id="profilePage">
       <div class="profile-header">
-        <div class="avatar">A</div>
-        <div>
-          <h2>Aisha R.</h2>
-          <p>Foodie · Jakarta</p>
-        </div>
-        <button>⚙️</button>
+        <div class="avatar" id="profileAvatar">A</div>
+      <div>
+        <h2 id="profileName">Loading...</h2>
+        <p id="profileBio">Loading...</p>
       </div>
-
-      <div class="profile-stats">
-        <div>♡<b>42</b><span>Liked</span></div>
-        <div>✨<b>318</b><span>Swipes</span></div>
-        <div>↗<b>92%</b><span>Match</span></div>
+    <button>⚙️</button>
+  </div>
+  <div class="profile-stats">
+    <div>
+      ♡
+      <b id="likedCount">0</b>
+      <span>Liked</span>
+    </div>
+    <div>
+      ✨
+      <b id="swipeCount">0</b>
+      <span>Swipes</span>
+    </div>
+    <div>
+      ↗
+      <b id="matchPercent">0%</b>
+      <span>Match</span>
+    </div>
+  </div>
+  <h3>Food Restrictions</h3>
+  <div class="profile-boxes">
+    <div>
+      <p>ALLERGIES</p>
+      <div id="allergie">
+        <span>None</span>
       </div>
-
-      <h3>Food Restrictions</h3>
-
-      <div class="profile-boxes">
-        <div>
-          <p>ALLERGIES</p>
-          <span>Peanut</span>
-          <span>Shellfish</span>
-        </div>
-        <div>
-          <p>DIET</p>
-          <span class="green">Halal</span>
-        </div>
+    </div>
+    <div>
+      <p>DIET</p>
+      <div id="dietList">
+        <span class="green">None</span>
       </div>
+    </div>
+  </div>
+  <h3>Swipe History Insight</h3>
+  <div class="taste-card">
+    <div>
+      <span>Spicy</span>
+      <b id="spicyValue">80%</b>
+      <progress id="spicyProgress" value="80" max="100"></progress>
+    </div>
+    <div>
+      <span>Sweet</span>
+      <b id="sweetValue">35%</b>
+      <progress id="sweetProgress" value="35" max="100"></progress>
+    </div>
+    <div>
+      <span>Savory</span>
+      <b id="savoryValue">70%</b>
+      <progress id="savoryProgress" value="70" max="100"></progress>
+    </div>
+    <div>
+      <span>Cheesy</span>
+      <b id="cheesyValue">60%</b>
+      <progress id="cheesyProgress" value="60" max="100"></progress>
+    </div>
+  </div>
+  <div class="settings-list">
+    <button>Notification settings ›</button>
+    <button>Dark mode ›</button>
+    <button>Privacy ›</button>
+    <button>Help & support ›</button>
+    <button onclick="showPage('loginPage')">Sign out ›</button>
+  </div>
 
-      <h3>Swipe History Insight</h3>
-
-      <div class="taste-card">
-        <div><span>Spicy</span><b>80%</b><progress value="80" max="100"></progress></div>
-        <div><span>Sweet</span><b>35%</b><progress value="35" max="100"></progress></div>
-        <div><span>Savory</span><b>70%</b><progress value="70" max="100"></progress></div>
-        <div><span>Cheesy</span><b>60%</b><progress value="60" max="100"></progress></div>
-      </div>
-
-      <div class="settings-list">
-        <button>Notification settings ›</button>
-        <button>Dark mode ›</button>
-        <button>Privacy ›</button>
-        <button>Help & support ›</button>
-        <button onclick="showPage('loginPage')">Sign out ›</button>
-      </div>
-    </section>
-
+</section>
   </main>
 
   <nav class="bottom-navbar">
