@@ -8,6 +8,8 @@ const rejectBtn = document.querySelector(".reject-btn");
 const likeBtn = document.querySelector(".like-btn");
 const starBtn = document.querySelector(".star-btn");
 
+const dailyPreferenceModal = document.getElementById("dailyPreferenceModal");
+
 let foods = [];
 let foodIndex = 0;
 let startX = 0;
@@ -17,8 +19,8 @@ let isDragging = false;
 const fallbackFoods = [
   {
     id: 1,
-    name: "Spicy Tteokbokki",
-    restaurant: "Seoul Street Kitchen",
+    food_name: "Spicy Tteokbokki",
+    restaurant_name: "Seoul Street Kitchen",
     img: "https://images.unsplash.com/photo-1603133872878-684f208fb84b?auto=format&fit=crop&w=900&q=80",
     image: "https://images.unsplash.com/photo-1603133872878-684f208fb84b?auto=format&fit=crop&w=900&q=80",
     rating: "4.8",
@@ -30,8 +32,8 @@ const fallbackFoods = [
   },
   {
     id: 2,
-    name: "Double Smash Burger",
-    restaurant: "Patty Garage",
+    food_name: "Double Smash Burger",
+    restaurant_name: "Patty Garage",
     img: "https://images.unsplash.com/photo-1550547660-d9450f859349?auto=format&fit=crop&w=900&q=80",
     image: "https://images.unsplash.com/photo-1550547660-d9450f859349?auto=format&fit=crop&w=900&q=80",
     rating: "4.6",
@@ -43,8 +45,8 @@ const fallbackFoods = [
   },
   {
     id: 3,
-    name: "Tonkotsu Ramen",
-    restaurant: "Mengoku Ramen Bar",
+    food_name: "Tonkotsu Ramen",
+    restaurant_name: "Mengoku Ramen Bar",
     img: "https://images.unsplash.com/photo-1569718212165-3a8278d5f624?auto=format&fit=crop&w=900&q=80",
     image: "https://images.unsplash.com/photo-1569718212165-3a8278d5f624?auto=format&fit=crop&w=900&q=80",
     rating: "4.7",
@@ -53,6 +55,19 @@ const fallbackFoods = [
     insight: "Praised for rich creamy broth, tender toppings, and warm comfort taste.",
     cuisine: "Japanese · $$",
     tags: ["Savory", "Ramen", "Comfort"]
+  },
+  {
+    id: 4,
+    food_name: "Nasi Goreng Spesial",
+    restaurant_name: "Warung Bahari",
+    img: "https://images.unsplash.com/photo-1512058564366-18510be2db19?auto=format&fit=crop&w=900&q=80",
+    image: "https://images.unsplash.com/photo-1512058564366-18510be2db19?auto=format&fit=crop&w=900&q=80",
+    rating: "4.7",
+    reviews: "1052 reviews",
+    distance: "0.9km",
+    insight: "Users love the smoky aroma and authentic Indonesian taste.",
+    cuisine: "Indonesian · $",
+    tags: ["Local", "Savory", "Affordable"]
   }
 ];
 
@@ -61,15 +76,18 @@ async function fetchFoods() {
     const response = await fetch(`${API_BASE_URL}/restaurants`);
     const data = await response.json();
 
-    foods = data.map((food) => ({
-      ...food,
-      img: food.img || food.image || "https://picsum.photos/300/200",
-      image: food.image || food.img || "https://picsum.photos/300/200",
-      reviews: food.count_rating || "0 reviews",
-      cuisine: food.origin_country || "Food · $$",
+    foods = data.map((food, index) => ({
+      id: food.id || index + 1,
+      food_name: food.food_name || food.name || "Food Name",
+      restaurant_name: food.restaurant_name || food.restaurant || "Restaurant Name",
+      img: food.img || food.image || "https://picsum.photos/500/700",
+      image: food.image || food.img || "https://picsum.photos/500/700",
+      rating: food.rating || "4.5",
+      reviews: food.reviews || food.count_rating || "0 reviews",
+      cuisine: food.cuisine || food.origin_country || "Food · $$",
       tags: food.tags || ["Recommended"],
       insight: food.insight || "This food is recommended based on rating and user preference.",
-      distance: typeof food.distance === "number" ? `${food.distance}km` : food.distance
+      distance: typeof food.distance === "number" ? `${food.distance}km` : food.distance || "1.0km"
     }));
 
     if (foods.length === 0) {
@@ -84,9 +102,23 @@ async function fetchFoods() {
   }
 }
 
+/* PAGE NAVIGATION */
+
 function showPage(pageId) {
   pages.forEach((page) => page.classList.remove("active"));
-  document.getElementById(pageId).classList.add("active");
+
+  const selectedPage = document.getElementById(pageId);
+  if (!selectedPage) return;
+
+  selectedPage.classList.add("active");
+
+  const authPages = ["loginPage", "registerPage", "successPage"];
+
+  if (authPages.includes(pageId)) {
+    document.body.classList.add("auth-active");
+  } else {
+    document.body.classList.remove("auth-active");
+  }
 
   navButtons.forEach((button) => button.classList.remove("active"));
 
@@ -106,6 +138,104 @@ function showPage(pageId) {
 }
 
 window.showPage = showPage;
+
+/* AUTH FLOW */
+
+function loginUser() {
+  const email = document.getElementById("loginEmail")?.value;
+  const password = document.getElementById("loginPassword")?.value;
+
+  if (!email || !password) {
+    alert("Please fill in your email and password first.");
+    return;
+  }
+
+  showPage("successPage");
+}
+
+window.loginUser = loginUser;
+
+function registerUser() {
+  const fullName = document.getElementById("fullName")?.value;
+  const username = document.getElementById("username")?.value;
+  const email = document.getElementById("email")?.value;
+  const password = document.getElementById("password")?.value;
+  const age = document.getElementById("age")?.value;
+  const city = document.getElementById("city")?.value;
+  const phone = document.getElementById("phone")?.value;
+  const gender = document.getElementById("gender")?.value;
+  const otherAllergy = document.getElementById("otherAllergy")?.value;
+
+  if (!fullName || !username || !email || !password || !age || !city || !phone || !gender) {
+    alert("Please fill in all required fields first.");
+    return;
+  }
+
+  const selectedAllergies = [...document.querySelectorAll(".allergy-chips span.active")]
+    .map((chip) => chip.textContent);
+
+  if (otherAllergy) {
+    selectedAllergies.push(otherAllergy);
+  }
+
+  const userData = {
+    id: Date.now(),
+    fullName,
+    username,
+    email,
+    password,
+    age,
+    city,
+    phone,
+    gender,
+    allergies: selectedAllergies
+  };
+
+  localStorage.setItem("fooderUser", JSON.stringify(userData));
+
+  console.log("Registered user:", userData);
+
+  showPage("successPage");
+}
+
+window.registerUser = registerUser;
+
+/* DAILY PREFERENCE MODAL */
+
+function openDailyPreference() {
+  if (dailyPreferenceModal) {
+    dailyPreferenceModal.classList.add("active");
+  }
+}
+
+window.openDailyPreference = openDailyPreference;
+
+function closeDailyPreference() {
+  if (dailyPreferenceModal) {
+    dailyPreferenceModal.classList.remove("active");
+  }
+}
+
+window.closeDailyPreference = closeDailyPreference;
+
+function startSwipeFromPreference() {
+  const selectedTodayPreferences = [...document.querySelectorAll(".daily-chips span.active")]
+    .map((chip) => chip.textContent);
+
+  localStorage.setItem(
+    "todayPreference",
+    JSON.stringify(selectedTodayPreferences)
+  );
+
+  console.log("Today's preference:", selectedTodayPreferences);
+
+  closeDailyPreference();
+  showPage("homePage");
+}
+
+window.startSwipeFromPreference = startSwipeFromPreference;
+
+/* FOOD CARD */
 
 function updateFoodCard() {
   if (!foodCard || foods.length === 0) return;
@@ -174,6 +304,8 @@ function nextFood() {
 }
 
 function swipeRight() {
+  if (!foodCard) return;
+
   saveSwipe("like");
 
   foodCard.style.transition = "0.35s ease";
@@ -185,6 +317,8 @@ function swipeRight() {
 }
 
 function swipeLeft() {
+  if (!foodCard) return;
+
   saveSwipe("dislike");
 
   foodCard.style.transition = "0.35s ease";
@@ -196,9 +330,13 @@ function swipeLeft() {
 }
 
 function resetCard() {
+  if (!foodCard) return;
+
   foodCard.style.transition = "0.3s ease";
   foodCard.style.transform = "translateX(0) rotate(0deg)";
 }
+
+/* SWIPE DRAG */
 
 function getClientX(event) {
   if (event.type.includes("mouse")) {
@@ -263,6 +401,8 @@ if (starBtn) {
     starBtn.classList.toggle("saved");
   });
 }
+
+/* DETAIL PAGE */
 
 function openFoodDetail(name, restaurant, image, rating, distance, insight, cuisine) {
   showPage("detailPage");
@@ -366,6 +506,8 @@ function updateScore(score) {
   scoreTitle.innerHTML = `${score} <span>/ 100 match for you</span>`;
 }
 
+/* ACTIVE CHIP */
+
 const categoryButtons = document.querySelectorAll(".category");
 
 categoryButtons.forEach((button) => {
@@ -375,9 +517,11 @@ categoryButtons.forEach((button) => {
   });
 });
 
-const chips = document.querySelectorAll(".chips span");
+const singleSelectChips = document.querySelectorAll(
+  ".chips:not(.allergy-chips):not(.daily-chips) span"
+);
 
-chips.forEach((chip) => {
+singleSelectChips.forEach((chip) => {
   chip.addEventListener("click", () => {
     const parent = chip.parentElement;
 
@@ -388,6 +532,18 @@ chips.forEach((chip) => {
     chip.classList.add("active");
   });
 });
+
+const multiSelectChips = document.querySelectorAll(
+  ".allergy-chips span, .daily-chips span"
+);
+
+multiSelectChips.forEach((chip) => {
+  chip.addEventListener("click", () => {
+    chip.classList.toggle("active");
+  });
+});
+
+/* SEARCH */
 
 const searchInput = document.querySelector(".search-box input");
 const listCards = document.querySelectorAll(".list-card");
@@ -408,6 +564,8 @@ if (searchInput) {
   });
 }
 
+/* SAVE BUTTON */
+
 const saveButtons = document.querySelectorAll(
   ".fav-card button, .heart-detail, .save-btn"
 );
@@ -419,4 +577,7 @@ saveButtons.forEach((button) => {
   });
 });
 
+/* INIT */
+
+document.body.classList.add("auth-active");
 fetchFoods();
