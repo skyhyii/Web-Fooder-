@@ -17,7 +17,7 @@ from services.review_service import get_review_service
 router = APIRouter(prefix="/review", tags=["Review Intelligence"])
 
 
-# ── Request / Response Models ─────────────────────────────────────────────────
+#  Request / Response Models 
 class ReviewInsightRequest(BaseModel):
     restaurant_id: str = Field(..., example="resto_001")
     restaurant_name: str = Field(..., example="Warung Pak Joko")
@@ -64,7 +64,7 @@ class SummarizeResponse(BaseModel):
     keyword_highlights: list[str]
 
 
-# ── Endpoints ─────────────────────────────────────────────────────────────────
+#  Endpoints 
 
 @router.get("/health")
 def health_check():

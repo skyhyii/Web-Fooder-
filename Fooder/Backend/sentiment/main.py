@@ -12,16 +12,16 @@ app = FastAPI(
 try:
     from routes.sentiment import router as sentiment_router
     app.include_router(sentiment_router)
-    print("✅ sentiment router loaded")
+    print("sentiment router loaded")
 except Exception as e:
-    print(f"❌ sentiment router gagal: {e}")
+    print(f"sentiment router gagal: {e}")
 
 try:
     from routes.review import router as review_router
     app.include_router(review_router)
-    print("✅ review router loaded")
+    print("review router loaded")
 except Exception as e:
-    print(f"❌ review router gagal: {e}")
+    print(f"review router gagal: {e}")
 
 @app.get("/")
 def home():

@@ -17,7 +17,7 @@ from services.sentiment_service import get_sentiment_service
 router = APIRouter(prefix="/sentiment", tags=["Sentiment Analysis"])
 
 
-# ── Request / Response Models ─────────────────────────────────────────────────
+#  Request / Response Models 
 class SingleReviewRequest(BaseModel):
     review: str = Field(..., min_length=1, example="Makanannya enak banget, porsinya besar!")
 
@@ -58,7 +58,7 @@ class RestaurantScoreResponse(BaseModel):
     interpretation: str
 
 
-# ── Helper ────────────────────────────────────────────────────────────────────
+#  Helper 
 def _interpret_score(score: float) -> str:
     if score >= 0.75:
         return "Sangat positif — pengguna sangat puas"
@@ -72,7 +72,7 @@ def _interpret_score(score: float) -> str:
         return "Sangat negatif — sebagian besar pengguna kecewa"
 
 
-# ── Endpoints ─────────────────────────────────────────────────────────────────
+#  Endpoints 
 
 @router.post("/predict", response_model=SentimentPrediction)
 def predict_sentiment(req: SingleReviewRequest):

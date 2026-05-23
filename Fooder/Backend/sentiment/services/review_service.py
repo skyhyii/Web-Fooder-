@@ -24,7 +24,7 @@ from utils.text_cleaning import (
 )
 
 
-# ── Data classes ──────────────────────────────────────────────────────────────
+#  Data classes 
 @dataclass
 class ReviewInsight:
     sentiment_score: float
@@ -37,7 +37,7 @@ class ReviewInsight:
     dominant_positive_keywords: list[str]
     dominant_negative_keywords: list[str]
     summary_sentence: str
-    human_readable_summary: str    # "78% pengguna puas, ..."
+    human_readable_summary: str    
 
 
 @dataclass
@@ -47,7 +47,7 @@ class SummarizationResult:
     keyword_highlights: list[str]
 
 
-# ── Keyword extraction (TF-IDF sederhana manual) ──────────────────────────────
+#  Keyword extraction (TF-IDF sederhana manual) 
 def _extract_keywords(texts: list[str], top_n: int = 8) -> list[str]:
     """
     Ekstrak kata kunci penting dari kumpulan teks menggunakan TF-IDF sederhana.
@@ -81,7 +81,7 @@ def _extract_keywords(texts: list[str], top_n: int = 8) -> list[str]:
     return [word for word, _ in tfidf_scores.most_common(top_n)]
 
 
-# ── Extractive Summarizer ─────────────────────────────────────────────────────
+#  Extractive Summarizer 
 def _score_sentence(sentence: str, keyword_weights: dict[str, float]) -> float:
     """Skor kalimat berdasarkan bobot keyword."""
     words = tokenize(clean_text(sentence, remove_stopwords=True))
@@ -141,7 +141,7 @@ def _extractive_summarize(reviews: list[str], max_sentences: int = 3) -> str:
     return ". ".join(selected) + "."
 
 
-# ── Review Service ────────────────────────────────────────────────────────────
+#  Review Service 
 class ReviewService:
     """
     Layanan analisis review dan summarization.
@@ -150,7 +150,7 @@ class ReviewService:
     def __init__(self):
         self._sentiment_svc = get_sentiment_service()
 
-    # ── Review Insight ─────────────────────────────────────────────────────────
+    #  Review Insight 
     def get_review_insight(
         self,
         reviews: list[str],
@@ -267,7 +267,7 @@ class ReviewService:
             human_readable_summary="Belum ada review untuk restoran ini.",
         )
 
-    # ── Summarization ──────────────────────────────────────────────────────────
+    #  Summarization 
     def summarize_reviews(
         self,
         reviews: list[str],
@@ -313,7 +313,7 @@ class ReviewService:
         )
 
 
-# ── Singleton ─────────────────────────────────────────────────────────────────
+#  Singleton 
 _review_service: ReviewService | None = None
 
 

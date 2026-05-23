@@ -29,64 +29,24 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from utils.text_cleaning import clean_text
 
-# ── Konfigurasi ───────────────────────────────────────────────────────────────
+# Konfigurasi
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
 DATA_PATH = os.path.join(BASE_DIR, "datasets", "Sentiment Analysis Indonesia.csv")    # dataset sentimen Indonesia
 MODEL_DIR = os.path.join(BASE_DIR, "backend", "sentiment", "app", "models")
 MODEL_PATH = os.path.join(MODEL_DIR, "sentiment_model.pkl")
 VECTORIZER_PATH = os.path.join(MODEL_DIR, "tfidf_vectorizer.pkl")
 
-# Kolom dalam CSV (sesuaikan dengan dataset kamu)
+# Kolom dalam CSV 
 TEXT_COL = "review"       # nama kolom teks
 LABEL_COL = "sentiment"   # nama kolom label: positif / netral / negatif
 
 
-# ── Data Dummy (fallback jika CSV belum tersedia) ─────────────────────────────
-DUMMY_DATA = {
-    "review": [
-        # Positif
-        "Makanannya enak banget, porsinya besar dan harganya murah",
-        "Pelayanan ramah, tempat bersih, recommended!",
-        "Sate ayamnya juara, wajib dicoba",
-        "Rasanya mantap, bakalan balik lagi",
-        "Enak dan terjangkau, puas banget makan di sini",
-        "Makanan lezat, cepat disajikan, tempatnya nyaman",
-        "Sangat puas dengan menu dan harganya",
-        "Rasa autentik, porsi melimpah, worth it banget",
-        "Top markotop! Terbaik di kawasan ini",
-        "Nasi gorengnya enak, tidak terlalu asin",
-        # Netral
-        "Biasa aja, tidak istimewa tapi tidak mengecewakan",
-        "Lumayan lah, masih oke untuk harganya",
-        "Standar, tidak ada yang spesial",
-        "Ya begitu deh, sesuai ekspektasi",
-        "Cukup oke, bisa dicoba",
-        # Negatif
-        "Makanannya tidak enak, hambar banget",
-        "Pelayanan lambat sekali, harus nunggu lama",
-        "Tempat kotor dan tidak terawat",
-        "Kecewa, porsinya kecil tapi harganya mahal",
-        "Tidak akan balik lagi, mengecewakan",
-        "Pelayan tidak ramah, makanan dingin",
-        "Rasa tidak sesuai foto, jauh dari ekspektasi",
-        "Basi dan tidak higienis, sakit perut setelah makan",
-    ],
-    "sentiment": [
-        "positif", "positif", "positif", "positif", "positif",
-        "positif", "positif", "positif", "positif", "positif",
-        "netral", "netral", "netral", "netral", "netral",
-        "negatif", "negatif", "negatif", "negatif", "negatif",
-        "negatif", "negatif", "negatif",
-    ],
-}
-
-
-# ── Load Data ─────────────────────────────────────────────────────────────────
+# Load Data
 def load_data() -> pd.DataFrame:
     if os.path.exists(DATA_PATH):
         print(f" Loading dataset dari {DATA_PATH} ...")
         df = pd.read_csv(DATA_PATH)
-        # Pastikan kolom ada
+        # Memastikan kolomnya ada
         if TEXT_COL not in df.columns or LABEL_COL not in df.columns:
             print(
                 f"  Kolom '{TEXT_COL}' atau '{LABEL_COL}' tidak ditemukan. "
@@ -102,7 +62,7 @@ def load_data() -> pd.DataFrame:
         return pd.DataFrame(DUMMY_DATA)
 
 
-# ── Preprocessing ─────────────────────────────────────────────────────────────
+#Preprocessing
 def preprocess(df: pd.DataFrame) -> pd.DataFrame:
     print(" Preprocessing teks ...")
     df = df.copy()
@@ -113,7 +73,7 @@ def preprocess(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-# ── Training ──────────────────────────────────────────────────────────────────
+# Training 
 def train(df: pd.DataFrame):
     print(f"   Total data: {len(df)} baris")
     print(f"   Distribusi label:\n{df['sentiment'].value_counts()}")
@@ -158,7 +118,7 @@ def train(df: pd.DataFrame):
     return pipeline
 
 
-# ── Simpan Model ──────────────────────────────────────────────────────────────
+#  Simpan Model 
 def save_model(pipeline: Pipeline):
     os.makedirs(MODEL_DIR, exist_ok=True)
 
@@ -175,7 +135,7 @@ def save_model(pipeline: Pipeline):
     print(f"Model disimpan ke: {MODEL_PATH}")
 
 
-# ── Main ──────────────────────────────────────────────────────────────────────
+#  Main 
 if __name__ == "__main__":
     print("=" * 50)
     print("  FooDer — Sentiment Model Training (Fallback)")

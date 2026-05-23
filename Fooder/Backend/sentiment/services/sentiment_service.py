@@ -22,7 +22,7 @@ from utils.text_cleaning import clean_text
 
 logger = logging.getLogger(__name__)
 
-# ── Konstanta ─────────────────────────────────────────────────────────────────
+#  Konstanta 
 INDOBERT_MODEL = "mdhugol/indonesia-bert-sentiment-classifier"
 MODEL_PATH = os.path.join(os.path.dirname(__file__), "..app/models/sentiment_model.pkl")
 VECTORIZER_PATH = os.path.join(os.path.dirname(__file__), "..app/models/tfidf_vectorizer.pkl")
@@ -37,7 +37,7 @@ LABEL_MAP = {
 SentimentLabel = Literal["positif", "netral", "negatif"]
 
 
-# ── Data class hasil prediksi ─────────────────────────────────────────────────
+#  Data class hasil prediksi 
 @dataclass
 class SentimentResult:
     label: SentimentLabel
@@ -45,7 +45,7 @@ class SentimentResult:
     numeric_score: float  # negatif=0.0, netral=0.5, positif=1.0
 
 
-# ── Konversi label → skor numerik ─────────────────────────────────────────────
+#  Konversi label → skor numerik 
 NUMERIC_SCORE_MAP: dict[SentimentLabel, float] = {
     "positif": 1.0,
     "netral": 0.5,
@@ -53,7 +53,7 @@ NUMERIC_SCORE_MAP: dict[SentimentLabel, float] = {
 }
 
 
-# ── Sentiment Service ─────────────────────────────────────────────────────────
+#  Sentiment Service 
 class SentimentService:
     """
     Layanan prediksi sentimen.
@@ -68,17 +68,17 @@ class SentimentService:
         self._backend: str = "none"
         self._load_model()
 
-    # ── Loading ────────────────────────────────────────────────────────────────
+    #  Loading 
     def _load_model(self):
         """Coba IndoBERT dulu, fallback ke TF-IDF lokal."""
         if self._try_load_indobert():
             self._backend = "indobert"
-            logger.info("✅ IndoBERT loaded successfully.")
+            logger.info("IndoBERT loaded successfully.")
         elif self._try_load_tfidf():
             self._backend = "tfidf"
-            logger.info("✅ TF-IDF fallback model loaded.")
+            logger.info("TF-IDF fallback model loaded.")
         else:
-            logger.warning("⚠️  Tidak ada model yang tersedia. Gunakan dummy scorer.")
+            logger.warning("Tidak ada model yang tersedia. Gunakan dummy scorer.")
             self._backend = "dummy"
 
     def _try_load_indobert(self) -> bool:
@@ -107,7 +107,7 @@ class SentimentService:
             logger.warning(f"TF-IDF model gagal dimuat: {e}")
             return False
 
-    # ── Prediksi tunggal ───────────────────────────────────────────────────────
+    # Prediksi tunggal 
     def predict(self, review_text: str) -> SentimentResult:
         """
         Prediksi sentimen satu review.
@@ -189,12 +189,12 @@ class SentimentService:
         else:
             return SentimentResult(label="netral", score=0.6, numeric_score=0.5)
 
-    # ── Prediksi batch ─────────────────────────────────────────────────────────
+    #  Prediksi batch 
     def predict_batch(self, reviews: list[str]) -> list[SentimentResult]:
         """Prediksi sentimen untuk banyak review sekaligus."""
         return [self.predict(r) for r in reviews]
 
-    # ── Sentiment Score Restoran ───────────────────────────────────────────────
+    #  Sentiment Score Restoran 
     def compute_restaurant_sentiment_score(
         self, reviews: list[str]
     ) -> dict:
@@ -244,7 +244,7 @@ class SentimentService:
         return self._backend
 
 
-# ── Singleton ─────────────────────────────────────────────────────────────────
+#  Singleton 
 _sentiment_service: SentimentService | None = None
 
 
