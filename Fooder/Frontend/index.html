@@ -4,7 +4,9 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>FooDer</title>
+
   <link rel="stylesheet" href="style.css">
+
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
@@ -14,13 +16,165 @@
 
   <main class="app">
 
+    <!-- LOGIN -->
+    <section class="page active" id="loginPage">
+      <div class="auth-container">
+        <h1 class="auth-title">Welcome to <span>FooDer</span></h1>
+        <p class="auth-subtitle">Swipe your next favorite food 🍜</p>
+
+        <div class="auth-form">
+          <input type="email" id="loginEmail" placeholder="Email">
+          <input type="password" id="loginPassword" placeholder="Password">
+
+          <button class="auth-btn" onclick="loginUser()">
+            Login
+          </button>
+
+          <p class="auth-switch">
+            Don't have an account?
+            <span onclick="showPage('registerPage')">Sign Up</span>
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- REGISTER -->
+    <section class="page" id="registerPage">
+      <div class="auth-container register-container">
+        <h1 class="auth-title">Create Account ✨</h1>
+        <p class="auth-subtitle">Tell us your basic information</p>
+
+        <div class="auth-form">
+          <input type="text" id="fullName" placeholder="Full Name">
+          <input type="text" id="username" placeholder="Username">
+          <input type="email" id="email" placeholder="Email">
+          <input type="password" id="password" placeholder="Password">
+          <input type="number" id="age" placeholder="Age">
+          <input type="text" id="city" placeholder="City">
+          <input type="text" id="phone" placeholder="Phone Number">
+
+          <select id="gender">
+            <option value="">Gender</option>
+            <option value="Female">Female</option>
+            <option value="Male">Male</option>
+          </select>
+
+          <div class="allergy-box">
+            <h3>Do you have any allergies?</h3>
+            <p>Select anything FooDer should avoid.</p>
+
+            <div class="chips allergy-chips">
+              <span>Peanut</span>
+              <span>Seafood</span>
+              <span>Shellfish</span>
+              <span>Dairy</span>
+              <span>Egg</span>
+              <span>Gluten</span>
+            </div>
+
+            <input type="text" id="otherAllergy" placeholder="Other allergy / food restriction">
+          </div>
+
+          <button class="auth-btn" onclick="registerUser()">
+            Create Account
+          </button>
+
+          <p class="auth-switch">
+            Already have an account?
+            <span onclick="showPage('loginPage')">Login</span>
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- SUCCESS PAGE -->
+    <section class="page" id="successPage">
+      <div class="success-container">
+        <div class="success-icon">✅</div>
+
+        <h1 class="auth-title">Login Successful!</h1>
+
+        <p class="auth-subtitle">
+          Welcome back to FooDer. Ready to find what you want to eat today?
+        </p>
+
+        <button class="auth-btn" onclick="openDailyPreference()">
+          Start Swiping 🍜
+        </button>
+
+        <button class="secondary-btn" onclick="showPage('profilePage')">
+          View Profile
+        </button>
+      </div>
+    </section>
+
+    <!-- DAILY PREFERENCE MODAL -->
+    <div class="preference-modal" id="dailyPreferenceModal">
+      <div class="modal-content">
+        <button class="modal-close" onclick="closeDailyPreference()">×</button>
+
+        <h2>What do you want to eat today? 🍽️</h2>
+        <p>
+          Choose your current mood. This preference is temporary and will be asked again next time.
+        </p>
+
+        <div class="daily-group">
+          <h3>Taste Mood</h3>
+          <div class="chips daily-chips">
+            <span>Spicy</span>
+            <span>Sweet</span>
+            <span>Savory</span>
+            <span>Cheesy</span>
+            <span>Fresh</span>
+          </div>
+        </div>
+
+        <div class="daily-group">
+          <h3>Food Type</h3>
+          <div class="chips daily-chips">
+            <span>Rice</span>
+            <span>Noodles</span>
+            <span>Snack</span>
+            <span>Dessert</span>
+            <span>Drink</span>
+          </div>
+        </div>
+
+        <div class="daily-group">
+          <h3>Cuisine</h3>
+          <div class="chips daily-chips">
+            <span>Indonesian</span>
+            <span>Korean</span>
+            <span>Japanese</span>
+            <span>Western</span>
+            <span>Italian</span>
+          </div>
+        </div>
+
+        <div class="daily-group">
+          <h3>Food Requirement</h3>
+          <div class="chips daily-chips">
+            <span>Halal</span>
+            <span>Vegetarian</span>
+            <span>No Seafood</span>
+            <span>Cheap Eats</span>
+            <span>Nearby</span>
+          </div>
+        </div>
+
+        <button class="auth-btn" onclick="startSwipeFromPreference()">
+          Show My Recommendations
+        </button>
+      </div>
+    </div>
+
     <!-- HOME -->
-    <section class="page active" id="homePage">
+    <section class="page" id="homePage">
       <div class="header">
         <div>
-          <p class="small-text">HI, HUNGRY FRIEND 👋</p>
+          <p class="small-text">TODAY'S FOOD MOOD 👋</p>
           <h1>Swipe your next <span>crave</span></h1>
-          <div class="trending-badge">🔥 5 trending picks near you</div>
+          <div class="trending-badge">🔥 Based on today's preference</div>
         </div>
         <div class="notif-btn">🔔</div>
       </div>
@@ -103,7 +257,9 @@
       </div>
 
       <h3>About this dish</h3>
-      <p class="desc">Chewy rice cakes simmered in a sweet-and-spicy gochujang sauce with fish cake and scallions.</p>
+      <p class="desc">
+        Chewy rice cakes simmered in a sweet-and-spicy gochujang sauce with fish cake and scallions.
+      </p>
 
       <div class="detail-tags">
         <span>Spicy</span>
@@ -128,6 +284,7 @@
         </div>
 
         <p class="most">MOST MENTIONED</p>
+
         <div class="keywords">
           <span>spicy</span>
           <span>chewy</span>
@@ -161,6 +318,7 @@
       </div>
 
       <p class="filter-title">CUISINE</p>
+
       <div class="chips">
         <span class="active">🍽️ All</span>
         <span>🌶️ Korean</span>
@@ -169,6 +327,7 @@
       </div>
 
       <p class="filter-title">TASTE</p>
+
       <div class="chips small">
         <span>Sweet</span>
         <span>Spicy</span>
@@ -178,6 +337,7 @@
       </div>
 
       <p class="filter-title">DIETARY</p>
+
       <div class="chips small">
         <span>Halal</span>
         <span>Vegetarian</span>
@@ -190,6 +350,7 @@
           <span>5 km</span>
           <input type="range" value="50">
         </div>
+
         <div>
           <b>Min rating</b>
           <span>4.0+</span>
@@ -202,17 +363,29 @@
       <div class="list">
         <div class="list-card" onclick="openFoodDetail('Spicy Tteokbokki','Seoul Street Kitchen','https://images.unsplash.com/photo-1603133872878-684f208fb84b?auto=format&fit=crop&w=900&q=80','4.8','0.6km','Most users love the bold spicy flavor and chewy texture for the price.','Korean · $$')">
           <img src="https://images.unsplash.com/photo-1603133872878-684f208fb84b?auto=format&fit=crop&w=300&q=80">
-          <div><h4>Spicy Tteokbokki</h4><p>Seoul Street Kitchen</p><small>⭐ 4.8 · 0.6 km · $$</small></div>
+          <div>
+            <h4>Spicy Tteokbokki</h4>
+            <p>Seoul Street Kitchen</p>
+            <small>⭐ 4.8 · 0.6 km · $$</small>
+          </div>
         </div>
 
         <div class="list-card" onclick="openFoodDetail('Double Smash Burger','Patty Garage','https://images.unsplash.com/photo-1550547660-d9450f859349?auto=format&fit=crop&w=900&q=80','4.6','1.2km','Reviewers rave about the crispy edges and juicy beef.','Western · $$')">
           <img src="https://images.unsplash.com/photo-1550547660-d9450f859349?auto=format&fit=crop&w=300&q=80">
-          <div><h4>Double Smash Burger</h4><p>Patty Garage</p><small>⭐ 4.6 · 1.2 km · $$</small></div>
+          <div>
+            <h4>Double Smash Burger</h4>
+            <p>Patty Garage</p>
+            <small>⭐ 4.6 · 1.2 km · $$</small>
+          </div>
         </div>
 
         <div class="list-card" onclick="openFoodDetail('Tonkotsu Ramen','Mengoku Ramen Bar','https://images.unsplash.com/photo-1569718212165-3a8278d5f624?auto=format&fit=crop&w=900&q=80','4.7','2.1km','Praised for rich creamy broth, tender toppings, and warm comfort taste.','Japanese · $$')">
           <img src="https://images.unsplash.com/photo-1569718212165-3a8278d5f624?auto=format&fit=crop&w=300&q=80">
-          <div><h4>Tonkotsu Ramen</h4><p>Mengoku Ramen Bar</p><small>⭐ 4.7 · 2.1 km · $$</small></div>
+          <div>
+            <h4>Tonkotsu Ramen</h4>
+            <p>Mengoku Ramen Bar</p>
+            <small>⭐ 4.7 · 2.1 km · $$</small>
+          </div>
         </div>
       </div>
     </section>
@@ -321,23 +494,7 @@
         <div>↗<b>92%</b><span>Match</span></div>
       </div>
 
-      <h3>Taste profile</h3>
-
-      <div class="taste-card">
-        <div><span>Spicy</span><b>80%</b><progress value="80" max="100"></progress></div>
-        <div><span>Sweet</span><b>35%</b><progress value="35" max="100"></progress></div>
-        <div><span>Savory</span><b>70%</b><progress value="70" max="100"></progress></div>
-        <div><span>Cheesy</span><b>60%</b><progress value="60" max="100"></progress></div>
-      </div>
-
-      <h3>Favorite cuisines</h3>
-
-      <div class="chips">
-        <span>Korean</span>
-        <span>Japanese</span>
-        <span>Indonesian</span>
-        <span>Mexican</span>
-      </div>
+      <h3>Food Restrictions</h3>
 
       <div class="profile-boxes">
         <div>
@@ -351,12 +508,21 @@
         </div>
       </div>
 
+      <h3>Swipe History Insight</h3>
+
+      <div class="taste-card">
+        <div><span>Spicy</span><b>80%</b><progress value="80" max="100"></progress></div>
+        <div><span>Sweet</span><b>35%</b><progress value="35" max="100"></progress></div>
+        <div><span>Savory</span><b>70%</b><progress value="70" max="100"></progress></div>
+        <div><span>Cheesy</span><b>60%</b><progress value="60" max="100"></progress></div>
+      </div>
+
       <div class="settings-list">
         <button>Notification settings ›</button>
         <button>Dark mode ›</button>
         <button>Privacy ›</button>
         <button>Help & support ›</button>
-        <button>Sign out ›</button>
+        <button onclick="showPage('loginPage')">Sign out ›</button>
       </div>
     </section>
 
