@@ -225,7 +225,6 @@
 
       <div class="action-buttons">
         <button class="reject-btn">✖</button>
-        <button class="star-btn">⭐</button>
         <button class="like-btn">❤️</button>
       </div>
     </section>
@@ -341,14 +340,14 @@
       <div class="filter-cards">
         <div>
           <b>Distance</b>
-          <span>5 km</span>
-          <input type="range" value="50">
+          <span id="distanceValue">5 km</span>
+          <input type="range" id="distanceRange" min="1" max="10" value="5">
         </div>
 
         <div>
           <b>Min rating</b>
-          <span>4.0+</span>
-          <input type="range" value="60">
+          <span id="ratingValue">4.0+</span>
+          <input type="range" id="ratingRange" min="1" max="5" step="0.1" value="4.0">
         </div>
       </div>
 
@@ -479,7 +478,7 @@
         <h2 id="profileName">Loading...</h2>
         <p id="profileBio">Loading...</p>
       </div>
-    <button>⚙️</button>
+    <button onclick="openEditProfileModal()">⚙️</button>
   </div>
   <div class="profile-stats">
     <div>
@@ -536,15 +535,48 @@
       <progress id="cheesyProgress" value="60" max="100"></progress>
     </div>
   </div>
-  <div class="settings-list">
-    <button>Notification settings ›</button>
-    <button>Dark mode ›</button>
-    <button>Privacy ›</button>
-    <button>Help & support ›</button>
-    <button onclick="showPage('loginPage')">Sign out ›</button>
-  </div>
+
+  <div class="mode-switch-card">
+  <label class="mode-switch">
+    <input type="checkbox" id="darkModeToggle">
+
+    <span class="mode-slider">
+      <span class="mode-text day-text">DAY MODE</span>
+      <span class="mode-text night-text">NIGHT MODE</span>
+
+      <span class="mode-circle">
+        <span class="sun-icon">☀</span>
+        <span class="moon-icon">☾</span>
+      </span>
+    </span>
+  </label>
+</div>
+
+<div class="settings-list">
+  <button>Privacy ›</button>
+  <button>Help & support ›</button>
+  <button onclick="showPage('loginPage')">Sign out ›</button>
+</div>
 
 </section>
+<div class="edit-profile-modal" id="editProfileModal">
+  <div class="edit-profile-box">
+    <button class="modal-close" onclick="closeEditProfileModal()">×</button>
+
+    <h2>Edit Profile</h2>
+    <p>Update your username and profile picture.</p>
+
+    <label>Username</label>
+    <input type="text" id="editUsername" placeholder="Enter new username">
+
+    <label>Profile Picture</label>
+    <input type="file" id="editProfilePicture" accept="image/*">
+
+    <button class="auth-btn" onclick="saveProfileChanges()">
+      Save Changes
+    </button>
+  </div>
+</div>
   </main>
 
   <nav class="bottom-navbar">
