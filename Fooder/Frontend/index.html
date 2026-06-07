@@ -328,28 +328,46 @@
         </div>
       </div>
 
-      <h3>8 results</h3>
+      <h3 id="searchResultCount">3 results</h3>
 
-      <div class="list">
-        <div class="list-card" onclick="openFoodDetail('Spicy Tteokbokki','Seoul Street Kitchen','https://images.unsplash.com/photo-1603133872878-684f208fb84b?auto=format&fit=crop&w=900&q=80','4.8','0.6km','Most users love the bold spicy flavor and chewy texture for the price.','Korean · $$')">
-          <img src="https://images.unsplash.com/photo-1603133872878-684f208fb84b?auto=format&fit=crop&w=300&q=80">
-          <div>
-            <h4>Spicy Tteokbokki</h4>
-            <p>Seoul Street Kitchen</p>
-            <small>⭐ 4.8 · 0.6 km · $$</small>
-          </div>
-        </div>
+<div class="list" id="searchResultList">
+  <div class="list-card"
+    data-cuisine="korean"
+    data-taste="spicy savory"
+    data-dietary="halal"
+    data-distance="0.6"
+    data-rating="4.8"
+    onclick="openFoodDetail('Spicy Tteokbokki','Seoul Street Kitchen','https://images.unsplash.com/photo-1603133872878-684f208fb84b?auto=format&fit=crop&w=900&q=80','4.8','0.6km','Most users love the bold spicy flavor and chewy texture for the price.','Korean · $$')">
+    <img src="https://images.unsplash.com/photo-1603133872878-684f208fb84b?auto=format&fit=crop&w=300&q=80">
+    <div>
+      <h4>Spicy Tteokbokki</h4>
+      <p>Seoul Street Kitchen</p>
+      <small>⭐ 4.8 · 0.6 km · $$</small>
+    </div>
+  </div>
 
-        <div class="list-card" onclick="openFoodDetail('Double Smash Burger','Patty Garage','https://images.unsplash.com/photo-1550547660-d9450f859349?auto=format&fit=crop&w=900&q=80','4.6','1.2km','Reviewers rave about the crispy edges and juicy beef.','Western · $$')">
-          <img src="https://images.unsplash.com/photo-1550547660-d9450f859349?auto=format&fit=crop&w=300&q=80">
-          <div>
-            <h4>Double Smash Burger</h4>
-            <p>Patty Garage</p>
-            <small>⭐ 4.6 · 1.2 km · $$</small>
-          </div>
-        </div>
+  <div class="list-card"
+    data-cuisine="western"
+    data-taste="savory cheesy"
+    data-dietary=""
+    data-distance="1.2"
+    data-rating="4.6"
+    onclick="openFoodDetail('Double Smash Burger','Patty Garage','https://images.unsplash.com/photo-1550547660-d9450f859349?auto=format&fit=crop&w=900&q=80','4.6','1.2km','Reviewers rave about the crispy edges and juicy beef.','Western · $$')">
+    <img src="https://images.unsplash.com/photo-1550547660-d9450f859349?auto=format&fit=crop&w=300&q=80">
+    <div>
+      <h4>Double Smash Burger</h4>
+      <p>Patty Garage</p>
+      <small>⭐ 4.6 · 1.2 km · $$</small>
+    </div>
+  </div>
 
-        <div class="list-card" onclick="openFoodDetail('Tonkotsu Ramen','Mengoku Ramen Bar','https://images.unsplash.com/photo-1569718212165-3a8278d5f624?auto=format&fit=crop&w=900&q=80','4.7','2.1km','Praised for rich creamy broth, tender toppings, and warm comfort taste.','Japanese · $$')">
+      <div class="list-card"
+          data-cuisine="japanese"
+          data-taste="savory fresh"
+          data-dietary=""
+          data-distance="2.1"
+          data-rating="4.7"
+          onclick="openFoodDetail('Tonkotsu Ramen','Mengoku Ramen Bar','https://images.unsplash.com/photo-1569718212165-3a8278d5f624?auto=format&fit=crop&w=900&q=80','4.7','2.1km','Praised for rich creamy broth, tender toppings, and warm comfort taste.','Japanese · $$')">
           <img src="https://images.unsplash.com/photo-1569718212165-3a8278d5f624?auto=format&fit=crop&w=300&q=80">
           <div>
             <h4>Tonkotsu Ramen</h4>
@@ -367,7 +385,7 @@
 
       <h3>Liked</h3>
 
-      <div class="favorite-grid">
+      <div class="favorite-grid" id="favoriteGrid">
         <div class="fav-card" onclick="openFoodDetail('Spicy Tteokbokki','Seoul Street Kitchen','https://images.unsplash.com/photo-1603133872878-684f208fb84b?auto=format&fit=crop&w=900&q=80','4.8','0.6km','Most users love the bold spicy flavor and chewy texture for the price.','Korean · $$')">
           <img src="https://images.unsplash.com/photo-1603133872878-684f208fb84b?auto=format&fit=crop&w=400&q=80">
           <button>❤️</button>
@@ -494,8 +512,6 @@
 </div>
 
 <div class="settings-list">
-  <button>Privacy ›</button>
-  <button>Help & support ›</button>
   <button onclick="showPage('loginPage')">Sign out ›</button>
 </div>
 
