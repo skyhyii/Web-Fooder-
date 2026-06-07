@@ -6,9 +6,27 @@ const navButtons = document.querySelectorAll(".nav");
 const foodCard = document.querySelector(".food-card");
 const rejectBtn = document.querySelector(".reject-btn");
 const likeBtn = document.querySelector(".like-btn");
-const starBtn = document.querySelector(".star-btn");
+const darkModeToggle = document.getElementById("darkModeToggle");
 
-const dailyPreferenceModal = document.getElementById("dailyPreferenceModal");
+if (localStorage.getItem("darkMode") === "enabled") {
+  document.body.classList.add("dark-mode");
+
+  if (darkModeToggle) {
+    darkModeToggle.checked = true;
+  }
+}
+
+if (darkModeToggle) {
+  darkModeToggle.addEventListener("change", function () {
+    if (this.checked) {
+      document.body.classList.add("dark-mode");
+      localStorage.setItem("darkMode", "enabled");
+    } else {
+      document.body.classList.remove("dark-mode");
+      localStorage.setItem("darkMode", "disabled");
+    }
+  });
+}
 
 let foods = [];
 let users = [];
@@ -537,11 +555,6 @@ if (likeBtn) {
   likeBtn.addEventListener("click", swipeRight);
 }
 
-if (starBtn) {
-  starBtn.addEventListener("click", () => {
-    starBtn.classList.toggle("saved");
-  });
-}
 
 /* DETAIL PAGE */
 
@@ -718,11 +731,87 @@ saveButtons.forEach((button) => {
   });
 });
 
+const editProfileModal = document.getElementById("editProfileModal");
+const editUsername = document.getElementById("editUsername");
+const editProfilePicture = document.getElementById("editProfilePicture");
+
+function openEditProfileModal() {
+  if (!editProfileModal) return;
+
+  const currentName = document.getElementById("profileName")?.innerText;
+
+  if (editUsername && currentName !== "Loading...") {
+    editUsername.value = currentName;
+  }
+
+  editProfileModal.classList.add("active");
+}
+
+window.openEditProfileModal = openEditProfileModal;
+
+function closeEditProfileModal() {
+  if (!editProfileModal) return;
+  editProfileModal.classList.remove("active");
+}
+
+window.closeEditProfileModal = closeEditProfileModal;
+
+function saveProfileChanges() {
+  const newUsername = editUsername?.value.trim();
+  const file = editProfilePicture?.files[0];
+
+  if (newUsername) {
+    document.getElementById("profileName").innerText = newUsername;
+    document.getElementById("profileAvatar").innerText =
+      newUsername.charAt(0).toUpperCase();
+
+    localStorage.setItem("profileUsername", newUsername);
+  }
+
+  if (file) {
+    const reader = new FileReader();
+
+    reader.onload = function (event) {
+      const avatar = document.getElementById("profileAvatar");
+
+      avatar.innerHTML = `
+        <img src="${event.target.result}" alt="Profile Picture">
+      `;
+
+      localStorage.setItem("profilePicture", event.target.result);
+    };
+
+    reader.readAsDataURL(file);
+  }
+
+  closeEditProfileModal();
+}
+
+window.saveProfileChanges = saveProfileChanges;
+
+function loadSavedProfile() {
+  const savedUsername = localStorage.getItem("profileUsername");
+  const savedPicture = localStorage.getItem("profilePicture");
+
+  if (savedUsername) {
+    document.getElementById("profileName").innerText = savedUsername;
+    document.getElementById("profileAvatar").innerText =
+      savedUsername.charAt(0).toUpperCase();
+  }
+
+  if (savedPicture) {
+    document.getElementById("profileAvatar").innerHTML = `
+      <img src="${savedPicture}" alt="Profile Picture">
+    `;
+  }
+}
+
 /* INIT */
 
 document.body.classList.add("auth-active");
 fetchFoods();
 fetchUsers();
+loadSavedProfile();
 
 /* ═══════════════════════════════════════════════════════════════════
    SENTIMENT ANALYSIS — FooDer (Perbaikan & Integrasi)
@@ -1135,103 +1224,73 @@ function hideScrapingLoader() {
 // ══════════════════════════════════════════════════════════════════════════════
 
 function showRestaurantResultPage(foodName, restaurants) {
-  const existing = document.getElementById("restaurantResultPage");
+  const existing = document.getElementById("restaurantResultPopup");
   if (existing) existing.remove();
 
-  // Sembunyikan semua page, tapi JANGAN sembunyikan navbar
-  document.querySelectorAll(".page").forEach(p => p.classList.remove("active"));
+  injectLoaderAndResultCSS();
 
   const fallback = [
-    { restaurant_name: "Warung Makan Sederhana", food_name: foodName, rating: 4.7, count_rating: 842,  city: "Bandung", address: "Jl. Braga No.12, Bandung" },
-    { restaurant_name: "Resto Nusantara",        food_name: foodName, rating: 4.5, count_rating: 1203, city: "Bandung", address: "Jl. Dago No.88, Bandung" },
-    { restaurant_name: "Kedai Rasa Asli",        food_name: foodName, rating: 4.3, count_rating: 567,  city: "Bandung", address: "Jl. Cihampelas No.45, Bandung" },
+    { restaurant_name: "Warung Makan Sederhana", food_name: foodName, rating: 4.7, count_rating: 842, city: "Bandung", address: "Jl. Braga No.12, Bandung" },
+    { restaurant_name: "Resto Nusantara", food_name: foodName, rating: 4.5, count_rating: 1203, city: "Bandung", address: "Jl. Dago No.88, Bandung" },
+    { restaurant_name: "Kedai Rasa Asli", food_name: foodName, rating: 4.3, count_rating: 567, city: "Bandung", address: "Jl. Cihampelas No.45, Bandung" },
   ];
-  const list = (restaurants && restaurants.length > 0) ? restaurants : fallback;
 
-  const avgRating = list.length
-    ? (list.reduce((s, r) => s + (r.rating || 0), 0) / list.length).toFixed(1)
-    : "–";
+  const list = restaurants && restaurants.length > 0 ? restaurants : fallback;
 
-  const page = document.createElement("section");
-  page.id = "restaurantResultPage";
-  page.className = "page active rr-page";
+  const popup = document.createElement("div");
+  popup.id = "restaurantResultPopup";
+  popup.className = "rr-popup";
 
-  page.innerHTML = `
-    <!-- Hero -->
-    <div class="rr-hero">
-      <button class="rr-back" onclick="closeRestaurantResultPage()">←</button>
-      <div>
-        <p class="small-text" style="color:#ff844d;">PILIHAN KAMU</p>
-        <h1 style="font-size:34px;">${foodName}</h1>
-        <div class="trending-badge">🎉 ${list.length} Restoran Ditemukan</div>
-      </div>
-    </div>
+  popup.innerHTML = `
+    <div class="rr-popup-box">
+      <button class="rr-popup-close" onclick="closeRestaurantResultPage()">×</button>
 
-    <!-- Stats row -->
-    <div class="rr-stats">
-      <div class="rr-stat">
-        <b>${list.length}</b>
-        <span>Restoran</span>
-      </div>
-      <div class="rr-stat-divider"></div>
-      <div class="rr-stat">
-        <b>⭐ ${avgRating}</b>
-        <span>Avg Rating</span>
-      </div>
-      <div class="rr-stat-divider"></div>
-      <div class="rr-stat">
-        <b>📍 Terdekat</b>
-        <span>Diurutkan</span>
-      </div>
-    </div>
+      <p class="small-text">PILIHAN KAMU</p>
+      <h1 class="rr-popup-title">${foodName}</h1>
+      <div class="trending-badge">🎉 ${list.length} Restoran Ditemukan</div>
 
-    <!-- List -->
-    <div class="rr-list">
-      ${list.length ? list.map((r, i) => `
-        <div class="rr-card" style="animation-delay:${i * 0.07}s">
-          <div class="rr-card-left">
+      <div class="rr-popup-list">
+        ${list.map((r, i) => `
+          <div class="rr-card">
             <div class="rr-rank">${i + 1}</div>
-          </div>
-          <div class="rr-card-body">
-            <div class="rr-card-top">
-              <div>
-                <div class="rr-card-name">${r.restaurant_name || "Nama Restoran"}</div>
-                <div class="rr-card-food">🍽️ ${r.food_name || foodName}</div>
+
+            <div class="rr-card-body">
+              <div class="rr-card-top">
+                <div>
+                  <div class="rr-card-name">${r.restaurant_name || "Nama Restoran"}</div>
+                  <div class="rr-card-food">🍽️ ${r.food_name || foodName}</div>
+                </div>
+                <div class="rr-card-rating">⭐ ${r.rating || "–"}</div>
               </div>
-              <div class="rr-card-rating">⭐ ${r.rating || "–"}</div>
-            </div>
-            <div class="rr-card-addr">
-              📍 ${r.address || r.city || "Lokasi tidak tersedia"}
-              ${r.count_rating ? `<span class="rr-review-count">${Number(r.count_rating).toLocaleString()} ulasan</span>` : ""}
-            </div>
-            <div class="rr-card-actions">
-              <button class="rr-btn rr-btn-primary" onclick="openGoogleMaps('${encodeURIComponent(r.restaurant_name || foodName)}')">🗺️ Buka Maps</button>
-              <button class="rr-btn rr-btn-secondary" onclick="shareRestaurant('${(r.restaurant_name || foodName).replace(/'/g, "\\'")}')">📤 Bagikan</button>
+
+              <div class="rr-card-addr">
+                📍 ${r.address || r.city || "Lokasi tidak tersedia"}
+                ${r.count_rating ? `<span class="rr-review-count">${Number(r.count_rating).toLocaleString()} ulasan</span>` : ""}
+              </div>
+
+              <div class="rr-card-actions">
+                <button class="rr-btn rr-btn-primary" onclick="openGoogleMaps('${encodeURIComponent(r.restaurant_name || foodName)}')">
+                  🗺️ Buka Maps
+                </button>
+                <button class="rr-btn rr-btn-secondary" onclick="shareRestaurant('${(r.restaurant_name || foodName).replace(/'/g, "\\'")}')">
+                  📤 Bagikan
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      `).join('') : `
-        <div class="rr-empty">
-          <div style="font-size:52px;margin-bottom:14px;">😔</div>
-          <h3 style="margin-top:0;">Belum ada restoran</h3>
-          <p>Coba lagi nanti ya!</p>
-        </div>
-      `}
+        `).join("")}
+      </div>
     </div>
   `;
 
-  // Sisipkan sebelum navbar agar tetap dalam .app
-  const app = document.querySelector(".app");
-  app.appendChild(page);
-
-  // Scroll ke atas
-  window.scrollTo({ top: 0, behavior: "smooth" });
+  document.body.appendChild(popup);
 }
 
 function closeRestaurantResultPage() {
-  const page = document.getElementById("restaurantResultPage");
-  if (page) page.remove();
-  showPage("homePage");
+  const popup = document.getElementById("restaurantResultPopup");
+  if (popup) popup.remove();
+
+  nextFood();
 }
 
 function openGoogleMaps(encoded) {
