@@ -55,6 +55,18 @@ class SwipeRequest(BaseModel):
 def save_swipe(data: SwipeRequest):
     swipe_history.append(data.dict())
 
+    # Update nilai swipe (dan like jika action=like) di database
+    session = SessionLocal()
+    try:
+        user = session.query(User).filter(User.id == data.user_id).first()
+        if user:
+            user.swipe = (user.swipe or 0) + 1
+            if data.action == "like":
+                user.like = (user.like or 0) + 1
+            session.commit()
+    finally:
+        session.close()
+
     return {
         "message": "Swipe saved",
         "data": data
@@ -76,19 +88,44 @@ class UserRegister(BaseModel):
     gender: str
 
 class UserLogin(BaseModel):
-    email: str
+    username: str
     password: str
 
 @app.post("/auth/register")
 def register_user(data: UserRegister):
     session = SessionLocal()
-    existing_user = session.query(User).filter(
-        User.email == data.email
+
+    # Mapping nilai gender dari frontend ke format enum database
+    gender_map = {
+        "Male": "male",
+        "Female": "female",
+        "male": "male",
+        "female": "female",
+        "Laki-laki": "male",
+        "Perempuan": "female",
+    }
+    gender_value = gender_map.get(data.gender, data.gender.lower())
+
+    # Cek apakah username sudah dipakai
+    existing_username = session.query(User).filter(
+        User.username == data.username
     ).first()
-    if existing_user:
+    if existing_username:
         session.close()
         return {
-            "message": "Email already registered"
+            "success": False,
+            "message": f"Username '{data.username}' sudah digunakan. Silakan pilih username lain."
+        }
+
+    # Cek apakah email sudah terdaftar
+    existing_email = session.query(User).filter(
+        User.email == data.email
+    ).first()
+    if existing_email:
+        session.close()
+        return {
+            "success": False,
+            "message": "Email sudah terdaftar."
         }
 
     new_user = User(
@@ -100,40 +137,67 @@ def register_user(data: UserRegister):
         phone=data.phone,
         city=data.city,
         allergy=data.allergy,
-        gender=data.gender
+        gender=gender_value,
+        like=0,
+        swipe=0
     )
     session.add(new_user)
-    session.commit()
-    session.refresh(new_user)
-    session.close()
-    return {
-        "message": "Register successful",
-        "user": {
-            "id": new_user.id,
-            "name": new_user.name,
-            "email": new_user.email
+    try:
+        session.commit()
+        session.refresh(new_user)
+        user_id = new_user.id
+        user_name = new_user.name
+        user_username = new_user.username
+        user_email = new_user.email
+        session.close()
+        return {
+            "success": True,
+            "message": "Register successful",
+            "user": {
+                "id": user_id,
+                "name": user_name,
+                "username": user_username,
+                "email": user_email,
+                "like": 0,
+                "swipe": 0,
+                "allergy": data.allergy,
+                "city": data.city
+            }
         }
-    }
+    except Exception as e:
+        session.rollback()
+        session.close()
+        return {
+            "success": False,
+            "message": f"Gagal menyimpan data: {str(e)}"
+        }
 
 @app.post("/auth/login")
 def login_user(data: UserLogin):
     session = SessionLocal()
     user = session.query(User).filter(
-        User.email == data.email,
+        User.username == data.username,
         User.password == data.password
     ).first()
     session.close()
     if user:
         return {
+            "success": True,
             "message": "Login successful",
             "user": {
                 "id": user.id,
                 "name": user.name,
-                "email": user.email
+                "username": user.username,
+                "email": user.email,
+                "city": user.city,
+                "like": user.like or 0,
+                "swipe": user.swipe or 0,
+                "allergy": user.allergy or ""
             }
         }
     return {
-        "message": "Invalid email or password"
+        "success": False,
+        "message": "Username atau password salah."
     }
 
 @app.get("/match/{food_name}")

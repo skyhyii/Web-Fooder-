@@ -442,14 +442,8 @@ p{
 .food-card h2{
   font-size:52px;
   line-height:.95;
-  margin-bottom:12px;
+  margin-bottom:20px;
   color:white;
-}
-
-.restaurant{
-  font-size:20px;
-  margin-bottom:18px;
-  color:rgba(255,255,255,.85);
 }
 
 .food-info{
@@ -458,38 +452,6 @@ p{
   margin-bottom:20px;
   font-weight:700;
   font-size:18px;
-}
-
-.review-box{
-  background:rgba(0,0,0,.45);
-  backdrop-filter:blur(14px);
-  padding:14px 16px;
-  border-radius:22px;
-  max-width:88%;
-}
-
-.review-title{
-  color:#ffd66b;
-  font-size:11px;
-  font-weight:900;
-  margin-bottom:6px;
-}
-
-.review-box p:last-child{
-  font-size:14px;
-  line-height:1.35;
-  color:white;
-}
-
-.detail-btn{
-  margin-top:18px;
-  background:none;
-  border:none;
-  color:white;
-  font-weight:800;
-  font-size:16px;
-  cursor:pointer;
-  text-align:left;
 }
 
 .action-buttons{
@@ -1573,5 +1535,43 @@ body.dark-mode .rr-popup-box {
 
 body.dark-mode .rr-card {
   background: #241c18;
+  color: #f8efe7;
+}
+/* ── NEARBY EMPTY STATE ─────────────────────────────────────────────── */
+.nearby-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 24px;
+  text-align: center;
+}
+
+.nearby-empty-icon {
+  font-size: 56px;
+  margin-bottom: 20px;
+  opacity: 0.5;
+}
+
+.nearby-empty-text {
+  font-size: 15px;
+  font-weight: 500;
+  color: #9e8e84;
+  line-height: 1.6;
+  max-width: 280px;
+}
+
+.rr-nearby-title {
+  font-size: 22px;
+  font-weight: 900;
+  color: #2b211b;
+  margin: 4px 0 8px;
+}
+
+body.dark-mode .nearby-empty-text {
+  color: #7a6a60;
+}
+
+body.dark-mode .rr-nearby-title {
   color: #f8efe7;
 }

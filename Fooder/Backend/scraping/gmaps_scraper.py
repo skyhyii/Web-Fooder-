@@ -307,7 +307,7 @@ def search_and_save(
     city: str = "",
     origin_country: str = "",
     description: str = "",
-    max_results: int = 5,
+    max_results: int = 3,
 ) -> list[dict]:
     all_results = []
     driver = get_driver()

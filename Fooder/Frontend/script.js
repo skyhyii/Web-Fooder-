@@ -152,27 +152,23 @@ async function fetchUsers() {
 /* PAGE USER */
 
 function renderUserProfile(user) {
+  if (!user) return;
 
-  document.getElementById("profileName").innerText =
-    user.username;
+  const nameEl = document.getElementById("profileName");
+  const bioEl = document.getElementById("profileBio");
+  const avatarEl = document.getElementById("profileAvatar");
+  const likeEl = document.getElementById("likedCount");
+  const swipeEl = document.getElementById("swipeCount");
+  const matchEl = document.getElementById("matchPercent");
+  const allergyEl = document.getElementById("allergie");
 
-  document.getElementById("profileBio").innerText =
-    `${user.role || "Foodie"} · ${user.city || "Indonesia"}`;
-
-  document.getElementById("profileAvatar").innerText =
-    user.username.charAt(0).toUpperCase();
-
-  document.getElementById("likedCount").innerText =
-    user.like || 0;
-
-  document.getElementById("swipeCount").innerText =
-    user.swipe || 0;
-
-  document.getElementById("matchPercent").innerText =
-    `${user.match || 0}%`;
-
-  document.getElementById("allergies").innerText =
-    user.allergy || None;
+  if (nameEl) nameEl.innerText = user.username || user.name || "User";
+  if (bioEl) bioEl.innerText = `Foodie · ${user.city || "Indonesia"}`;
+  if (avatarEl) avatarEl.innerText = (user.username || user.name || "U").charAt(0).toUpperCase();
+  if (likeEl) likeEl.innerText = user.like || 0;
+  if (swipeEl) swipeEl.innerText = user.swipe || 0;
+  if (matchEl) matchEl.innerText = `${user.match || 0}%`;
+  if (allergyEl) allergyEl.innerText = user.allergy || "Tidak ada";
 }
 
 /* PAGE NAVIGATION */
@@ -214,61 +210,90 @@ window.showPage = showPage;
 
 /* AUTH FLOW */
 
-function loginUser() {
-  const email = document.getElementById("loginEmail")?.value;
+async function loginUser() {
+  const username = document.getElementById("loginEmail")?.value.trim();
   const password = document.getElementById("loginPassword")?.value;
 
-  if (!email || !password) {
-    alert("Please fill in your email and password first.");
+  if (!username || !password) {
+    alert("Harap isi username dan password terlebih dahulu.");
     return;
   }
 
-  showPage("successPage");
+  try {
+    const response = await fetch(`${API_BASE_URL}/auth/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username, password })
+    });
+    const data = await response.json();
+
+    if (data.success) {
+      // Simpan data user ke localStorage untuk sesi ini
+      localStorage.setItem("fooderUser", JSON.stringify(data.user));
+      renderUserProfile(data.user);
+      showPage("successPage");
+    } else {
+      alert(data.message || "Username atau password salah.");
+    }
+  } catch (error) {
+    console.error("Login failed:", error);
+    alert("Gagal terhubung ke server. Pastikan backend berjalan.");
+  }
 }
 
 window.loginUser = loginUser;
 
-function registerUser() {
-  const fullName = document.getElementById("fullName")?.value;
-  const username = document.getElementById("username")?.value;
-  const email = document.getElementById("email")?.value;
+async function registerUser() {
+  const fullName = document.getElementById("fullName")?.value.trim();
+  const username = document.getElementById("username")?.value.trim();
+  const email = document.getElementById("email")?.value.trim();
   const password = document.getElementById("password")?.value;
   const age = document.getElementById("age")?.value;
-  const city = document.getElementById("city")?.value;
-  const phone = document.getElementById("phone")?.value;
+  const city = document.getElementById("city")?.value.trim();
+  const phone = document.getElementById("phone")?.value.trim();
   const gender = document.getElementById("gender")?.value;
   const otherAllergy = document.getElementById("otherAllergy")?.value;
 
   if (!fullName || !username || !email || !password || !age || !city || !phone || !gender) {
-    alert("Please fill in all required fields first.");
+    alert("Harap isi semua field yang diperlukan.");
     return;
   }
 
   const selectedAllergies = [...document.querySelectorAll(".allergy-chips span.active")]
     .map((chip) => chip.textContent);
+  if (otherAllergy) selectedAllergies.push(otherAllergy);
 
-  if (otherAllergy) {
-    selectedAllergies.push(otherAllergy);
+  try {
+    const response = await fetch(`${API_BASE_URL}/auth/register`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: fullName,
+        username,
+        email,
+        password,
+        age: parseInt(age),
+        city,
+        phone,
+        allergy: selectedAllergies.join(", "),
+        gender
+      })
+    });
+    const data = await response.json();
+
+    if (data.success) {
+      // Simpan user ke localStorage dan langsung login
+      localStorage.setItem("fooderUser", JSON.stringify(data.user));
+      renderUserProfile(data.user);
+      showPage("successPage");
+    } else {
+      // Tampilkan peringatan (termasuk username sudah ada)
+      alert(data.message || "Registrasi gagal.");
+    }
+  } catch (error) {
+    console.error("Register failed:", error);
+    alert("Gagal terhubung ke server. Pastikan backend berjalan.");
   }
-
-  const userData = {
-    id: Date.now(),
-    fullName,
-    username,
-    email,
-    password,
-    age,
-    city,
-    phone,
-    gender,
-    allergies: selectedAllergies
-  };
-
-  localStorage.setItem("fooderUser", JSON.stringify(userData));
-
-  console.log("Registered user:", userData);
-
-  showPage("successPage");
 }
 
 window.registerUser = registerUser;
@@ -319,8 +344,6 @@ function updateFoodCard() {
   document.querySelector(".food-card h2").textContent = food.food_name;
   document.querySelector(".price-tag").textContent = food.cuisine;
 
-  document.querySelector(".review-box p:last-child").textContent = food.insight;
-
   const tagBox = document.querySelector(".food-tags");
   tagBox.innerHTML = "";
 
@@ -342,20 +365,38 @@ function updateFoodCard() {
 async function saveSwipe(action) {
   if (foods.length === 0) return;
 
+  // Ambil user dari sesi login
+  const storedUser = localStorage.getItem("fooderUser");
+  const currentUser = storedUser ? JSON.parse(storedUser) : null;
+  const userId = currentUser?.id || 1;
+
   try {
     await fetch(`${API_BASE_URL}/swipe`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        user_id: 1,
+        user_id: userId,
         food_id: foods[foodIndex].id || foodIndex + 1,
         action: action
       })
     });
 
-    console.log(`Swipe ${action} saved`);
+    // Update hitungan lokal di localStorage (swipe DB + sesi ini)
+    if (currentUser) {
+      currentUser.swipe = (currentUser.swipe || 0) + 1;
+      if (action === "like") {
+        currentUser.like = (currentUser.like || 0) + 1;
+      }
+      localStorage.setItem("fooderUser", JSON.stringify(currentUser));
+
+      // Perbarui tampilan profil jika sudah di-render
+      const swipeEl = document.getElementById("swipeCount");
+      const likeEl = document.getElementById("likedCount");
+      if (swipeEl) swipeEl.innerText = currentUser.swipe;
+      if (likeEl) likeEl.innerText = currentUser.like;
+    }
+
+    console.log(`Swipe ${action} saved for user ${userId}`);
   } catch (error) {
     console.error("Failed to save swipe:", error);
   }
@@ -451,14 +492,23 @@ function showSwipeProgress(count, food) {
 
 async function triggerFoodMatch(food) {
   const foodName = food?.food_name || "makanan ini";
+  const foodImage = food?.image || food?.img || "https://picsum.photos/400/400";
 
+  // Mulai scraping SEKARANG (paralel dengan animasi card)
+  const scrapingPromise = fetch(`${API_BASE_URL}/match/${encodeURIComponent(foodName)}`)
+    .then(r => r.json())
+    .catch(() => null);
+
+  // Tampilkan animasi card 15 detik — scraping sudah jalan di background
+  await showFoodMatchCard(foodName, foodImage);
+
+  // Animasi selesai → tampilkan scraping loader
   showScrapingLoader(foodName);
 
   try {
-    const response = await fetch(`${API_BASE_URL}/match/${encodeURIComponent(foodName)}`);
-    const data = await response.json();
+    const data = await scrapingPromise;
     window._matchedFood = foodName;
-    window._matchedRestaurants = data.restaurants || [];
+    window._matchedRestaurants = (data && data.restaurants) ? data.restaurants : [];
 
     await waitForLoaderFinish();
     hideScrapingLoader();
@@ -469,6 +519,168 @@ async function triggerFoodMatch(food) {
     hideScrapingLoader();
     showRestaurantResultPage(foodName, []);
   }
+}
+
+function showFoodMatchCard(foodName, foodImage) {
+  return new Promise(resolve => {
+    injectLoaderAndResultCSS();
+
+    const existing = document.getElementById("foodMatchCardPopup");
+    if (existing) existing.remove();
+
+    const popup = document.createElement("div");
+    popup.id = "foodMatchCardPopup";
+    popup.innerHTML = `
+      <div class="fmc-overlay">
+        <div class="fmc-card-wrap">
+          <div class="fmc-sparkles">
+            <span class="fmc-spark fmc-spark1">✨</span>
+            <span class="fmc-spark fmc-spark2">⭐</span>
+            <span class="fmc-spark fmc-spark3">🌟</span>
+            <span class="fmc-spark fmc-spark4">✨</span>
+          </div>
+          <div class="fmc-card">
+            <div class="fmc-badge">🎉 MATCH!</div>
+            <div class="fmc-img-wrap">
+              <img class="fmc-img" src="${foodImage}" alt="${foodName}" onerror="this.src='https://picsum.photos/400/400'">
+              <div class="fmc-img-overlay"></div>
+            </div>
+            <div class="fmc-content">
+              <p class="fmc-label">Makanan yang cocok untuk mu hari ini!</p>
+              <h2 class="fmc-name">${foodName}</h2>
+              <div class="fmc-hearts">
+                <span>❤️</span><span>❤️</span><span>❤️</span>
+              </div>
+            </div>
+          </div>
+          <div class="fmc-loading-bar">
+            <div class="fmc-loading-fill" id="fmcLoadingFill"></div>
+          </div>
+          <p class="fmc-hint">Sedang menyiapkan rekomendasi...</p>
+        </div>
+      </div>
+    `;
+
+    // Inject CSS if not already done
+    if (!document.getElementById("fmcCSS")) {
+      const s = document.createElement("style");
+      s.id = "fmcCSS";
+      s.textContent = `
+        @keyframes fmcFadeIn   { from{opacity:0} to{opacity:1} }
+        @keyframes fmcSlideUp  { from{opacity:0;transform:translateY(40px) scale(0.92)} to{opacity:1;transform:translateY(0) scale(1)} }
+        @keyframes fmcWobble   {
+          0%   { transform: rotate(0deg) scale(1); }
+          10%  { transform: rotate(-4deg) scale(1.02); }
+          20%  { transform: rotate(4deg) scale(1.02); }
+          30%  { transform: rotate(-3deg) scale(1.01); }
+          40%  { transform: rotate(3deg) scale(1.01); }
+          50%  { transform: rotate(-2deg) scale(1.005); }
+          60%  { transform: rotate(2deg) scale(1.005); }
+          70%  { transform: rotate(-1.5deg) scale(1); }
+          80%  { transform: rotate(1.5deg) scale(1); }
+          90%  { transform: rotate(-0.5deg) scale(1); }
+          100% { transform: rotate(0deg) scale(1); }
+        }
+        @keyframes fmcSpark1   { 0%,100%{transform:translate(0,0) scale(1);opacity:1} 50%{transform:translate(-12px,-18px) scale(1.3);opacity:.7} }
+        @keyframes fmcSpark2   { 0%,100%{transform:translate(0,0) scale(1);opacity:1} 50%{transform:translate(14px,-14px) scale(1.4);opacity:.6} }
+        @keyframes fmcSpark3   { 0%,100%{transform:translate(0,0) scale(1);opacity:1} 50%{transform:translate(-10px,16px) scale(1.2);opacity:.8} }
+        @keyframes fmcSpark4   { 0%,100%{transform:translate(0,0) scale(1);opacity:1} 50%{transform:translate(12px,12px) scale(1.5);opacity:.5} }
+        @keyframes fmcHeartBeat { 0%,100%{transform:scale(1)} 50%{transform:scale(1.25)} }
+        @keyframes fmcShimmer  { 0%{background-position:-200% 0} 100%{background-position:200% 0} }
+        @keyframes fmcFillBar  { from{width:0%} to{width:100%} }
+
+        .fmc-overlay {
+          position: fixed; inset: 0;
+          background: rgba(43,33,27,.65);
+          backdrop-filter: blur(12px);
+          display: flex; align-items: center; justify-content: center;
+          z-index: 99999;
+          animation: fmcFadeIn 0.4s ease;
+        }
+        .fmc-card-wrap {
+          display: flex; flex-direction: column; align-items: center; gap: 14px;
+          animation: fmcSlideUp 0.5s cubic-bezier(0.34,1.56,0.64,1);
+        }
+        .fmc-sparkles {
+          position: absolute;
+          pointer-events: none;
+          font-size: 22px;
+          width: 300px; height: 300px;
+          display: flex; align-items: center; justify-content: center;
+        }
+        .fmc-spark { position: absolute; }
+        .fmc-spark1 { top: 20px; left: 40px; animation: fmcSpark1 2.1s ease-in-out infinite; }
+        .fmc-spark2 { top: 30px; right: 30px; animation: fmcSpark2 1.8s ease-in-out infinite .3s; }
+        .fmc-spark3 { bottom: 40px; left: 30px; animation: fmcSpark3 2.3s ease-in-out infinite .6s; }
+        .fmc-spark4 { bottom: 30px; right: 40px; animation: fmcSpark4 1.9s ease-in-out infinite .9s; }
+
+        .fmc-card {
+          width: 280px;
+          background: white;
+          border-radius: 32px;
+          overflow: hidden;
+          box-shadow: 0 32px 80px rgba(255,95,95,.28), 0 12px 32px rgba(0,0,0,.12);
+          animation: fmcWobble 15s cubic-bezier(0.36,0.07,0.19,0.97);
+          position: relative;
+        }
+        .fmc-badge {
+          position: absolute; top: 14px; left: 14px; z-index: 2;
+          background: linear-gradient(135deg,#ff844d,#ff5f5f);
+          color: white; font-size: 12px; font-weight: 900;
+          padding: 6px 14px; border-radius: 999px;
+          box-shadow: 0 6px 18px rgba(255,95,95,.35);
+          letter-spacing: .5px;
+        }
+        .fmc-img-wrap { position: relative; width: 100%; height: 200px; overflow: hidden; }
+        .fmc-img { width: 100%; height: 100%; object-fit: cover; }
+        .fmc-img-overlay {
+          position: absolute; inset: 0;
+          background: linear-gradient(to bottom, transparent 40%, rgba(43,33,27,.5) 100%);
+        }
+        .fmc-content {
+          padding: 18px 18px 20px;
+          text-align: center;
+          background: #fff8ef;
+        }
+        .fmc-label {
+          font-size: 11px; font-weight: 700; color: #ff844d;
+          text-transform: uppercase; letter-spacing: 1px;
+          margin-bottom: 6px;
+        }
+        .fmc-name {
+          font-size: 22px; font-weight: 900; color: #2b211b;
+          margin-bottom: 12px; line-height: 1.2;
+        }
+        .fmc-hearts { display: flex; justify-content: center; gap: 6px; font-size: 18px; }
+        .fmc-hearts span:nth-child(1) { animation: fmcHeartBeat 1.2s ease-in-out infinite; }
+        .fmc-hearts span:nth-child(2) { animation: fmcHeartBeat 1.2s ease-in-out infinite .2s; }
+        .fmc-hearts span:nth-child(3) { animation: fmcHeartBeat 1.2s ease-in-out infinite .4s; }
+
+        .fmc-loading-bar {
+          width: 260px; height: 6px;
+          background: rgba(255,255,255,.3);
+          border-radius: 999px; overflow: hidden;
+        }
+        .fmc-loading-fill {
+          height: 100%; width: 0%;
+          background: linear-gradient(90deg, #ff844d, #ff5f5f);
+          background-size: 200% 100%;
+          border-radius: 999px;
+          animation: fmcFillBar 15s linear forwards, fmcShimmer 1.5s linear infinite;
+        }
+        .fmc-hint { font-size: 12px; color: rgba(255,255,255,.75); font-weight: 600; letter-spacing: .3px; }
+      `;
+      document.head.appendChild(s);
+    }
+
+    document.body.appendChild(popup);
+
+    setTimeout(() => {
+      popup.style.opacity = "0";
+      popup.style.transition = "opacity 0.4s ease";
+      setTimeout(() => { popup.remove(); resolve(); }, 400);
+    }, 15000);
+  });
 }
 
 function waitForLoaderFinish() {
@@ -810,7 +1022,13 @@ function loadSavedProfile() {
 
 document.body.classList.add("auth-active");
 fetchFoods();
-fetchUsers();
+
+// Load profil dari localStorage (hasil login/register sebelumnya)
+const _savedUser = localStorage.getItem("fooderUser");
+if (_savedUser) {
+  try { renderUserProfile(JSON.parse(_savedUser)); } catch(e) {}
+}
+
 loadSavedProfile();
 
 /* ═══════════════════════════════════════════════════════════════════
@@ -1032,8 +1250,6 @@ function updateFoodCard() {
   document.querySelector(".food-card h2").textContent = food.food_name;
   document.querySelector(".price-tag").textContent = food.cuisine;
 
-  document.querySelector(".review-box p:last-child").textContent = food.insight;
-
   const tagBox = document.querySelector(".food-tags");
   tagBox.innerHTML = "";
   food.tags.forEach((tag) => {
@@ -1041,18 +1257,6 @@ function updateFoodCard() {
     span.textContent = tag;
     tagBox.appendChild(span);
   });
-
-  // Patch tombol "View details" agar menyertakan restaurant ID
-  const detailBtn = document.querySelector(".detail-btn");
-  if (detailBtn) {
-    detailBtn.onclick = () => openFoodDetail(
-      food.food_name,
-      food.img || food.image,
-      food.insight,
-      food.cuisine,
-      food.id   // <-- kirim ID untuk sentimen
-    );
-  }
 
   foodCard.style.transition = "none";
   foodCard.style.transform = "translateX(0) rotate(0deg) scale(0.95)";
@@ -1120,11 +1324,17 @@ window.updateFoodCard = updateFoodCard;
 
 const LOADER_MESSAGES = [
   { icon: "🗺️", text: "Mencari restoran di Google Maps..." },
-  { icon: "📍", text: "Menemukan lokasi terdekat..." },
+  { icon: "📍", text: "Menemukan lokasi restoran..." },
   { icon: "⭐", text: "Mengambil data rating & ulasan..." },
   { icon: "💾", text: "Menyimpan ke database..." },
-  { icon: "✨", text: "Hampir selesai..." },
+  { icon: "✨", text: "Tunggu sebentar..." },
+  { icon: "🔍", text: "Melakukan analisis restoran..." },
+  { icon: "😊", text: "Sabarr yaa..." },
+  { icon: "😄", text: "Hampir selesai..." },
 ];
+
+// Durasi tiap step (ms) — total ~120 detik dibagi jumlah step
+const STEP_DURATION = Math.floor(120000 / LOADER_MESSAGES.length);
 
 let loaderInterval = null;
 
@@ -1140,7 +1350,7 @@ function showScrapingLoader(foodName) {
     <div class="fl-overlay">
       <div class="fl-box">
         <div class="fl-food-name">🍽️ ${foodName}</div>
-        <div class="fl-title">Kamu memilih makanan ini!</div>
+        <div class="fl-title">Makanan untukmu hari ini!</div>
         <div class="fl-subtitle">Sedang mencari restoran terbaik untukmu...</div>
 
         <div class="fl-anim">
@@ -1157,34 +1367,55 @@ function showScrapingLoader(foodName) {
           <div class="fl-bar-fill" id="flBarFill"></div>
         </div>
 
-        <div class="fl-steps" id="flSteps">
-          ${LOADER_MESSAGES.map((m, i) => `
-            <div class="fl-step" id="flStep${i}">
-              <span class="fl-step-icon">${m.icon}</span>
-              <span class="fl-step-text">${m.text}</span>
-              <span class="fl-step-check" id="flCheck${i}">⏳</span>
-            </div>
-          `).join('')}
-        </div>
+        <div class="fl-steps" id="flSteps"></div>
       </div>
     </div>
   `;
   document.body.appendChild(loader);
 
-  // Animate steps
+  // Inject keyframe animasi masuk step jika belum ada
+  if (!document.getElementById("flStepEntryKeyframe")) {
+    const s = document.createElement("style");
+    s.id = "flStepEntryKeyframe";
+    s.textContent = `
+      @keyframes flStepEnter {
+        from { opacity: 0; transform: translateY(10px) scale(0.96); }
+        to   { opacity: 1; transform: translateY(0) scale(1); }
+      }
+    `;
+    document.head.appendChild(s);
+  }
+
   let step = 0;
-  const stepDuration = 75000 / LOADER_MESSAGES.length;
 
   function animateStep() {
     if (step >= LOADER_MESSAGES.length) return;
-    const prev = document.getElementById(`flCheck${step - 1}`);
-    const stepEl = document.getElementById(`flStep${step}`);
-    const msgEl = document.getElementById("flMsg");
+
+    const stepsContainer = document.getElementById("flSteps");
+    const msgEl  = document.getElementById("flMsg");
     const iconEl = document.getElementById("flIcon");
     const fillEl = document.getElementById("flBarFill");
 
-    if (prev) prev.textContent = "✅";
-    if (stepEl) stepEl.classList.add("active");
+    // Tandai step sebelumnya sebagai selesai ✅
+    const prevCheck = document.getElementById(`flCheck${step - 1}`);
+    if (prevCheck) prevCheck.textContent = "✅";
+
+    // Buat elemen step baru dan tambahkan ke DOM (muncul satu per satu)
+    const stepEl = document.createElement("div");
+    stepEl.className = "fl-step active";
+    stepEl.id = `flStep${step}`;
+    stepEl.style.animation = "flStepEnter 0.35s cubic-bezier(0.34,1.56,0.64,1) both";
+    stepEl.innerHTML = `
+      <span class="fl-step-icon">${LOADER_MESSAGES[step].icon}</span>
+      <span class="fl-step-text">${LOADER_MESSAGES[step].text}</span>
+      <span class="fl-step-check" id="flCheck${step}">⏳</span>
+    `;
+    if (stepsContainer) stepsContainer.appendChild(stepEl);
+
+    // Scroll container ke bawah agar step terbaru selalu terlihat
+    if (stepsContainer) stepsContainer.scrollTop = stepsContainer.scrollHeight;
+
+    // Update teks pesan & ikon animasi di tengah
     if (msgEl) msgEl.textContent = LOADER_MESSAGES[step].text;
     if (iconEl) {
       iconEl.style.transform = "scale(0)";
@@ -1193,16 +1424,20 @@ function showScrapingLoader(foodName) {
         iconEl.style.transform = "scale(1)";
       }, 150);
     }
+
+    // Update progress bar
     if (fillEl) fillEl.style.width = ((step + 1) / LOADER_MESSAGES.length * 100) + "%";
 
     step++;
+
     if (step < LOADER_MESSAGES.length) {
-      loaderInterval = setTimeout(animateStep, stepDuration);
+      loaderInterval = setTimeout(animateStep, STEP_DURATION);
     } else {
+      // Tandai step terakhir selesai setelah sebentar
       setTimeout(() => {
-        const last = document.getElementById(`flCheck${LOADER_MESSAGES.length - 1}`);
-        if (last) last.textContent = "✅";
-      }, 200);
+        const lastCheck = document.getElementById(`flCheck${LOADER_MESSAGES.length - 1}`);
+        if (lastCheck) lastCheck.textContent = "✅";
+      }, 300);
     }
   }
 
@@ -1223,10 +1458,25 @@ function hideScrapingLoader() {
 //  HALAMAN HASIL RESTORAN
 // ══════════════════════════════════════════════════════════════════════════════
 
-function showRestaurantResultPage(foodName, restaurants) {
-  const existing = document.getElementById("restaurantResultPopup");
-  if (existing) existing.remove();
+// Dummy restaurant images based on index
+const RESTAURANT_DUMMY_IMAGES = [
+  "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=600&q=80",
+  "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?auto=format&fit=crop&w=600&q=80",
+  "https://images.unsplash.com/photo-1414235077428-338989a2e8c0?auto=format&fit=crop&w=600&q=80",
+  "https://images.unsplash.com/photo-1552566626-52f8b828329c?auto=format&fit=crop&w=600&q=80",
+  "https://images.unsplash.com/photo-1537047902294-62a40c20a6ae?auto=format&fit=crop&w=600&q=80",
+];
 
+// Dummy sentiment data per restaurant
+const DUMMY_SENTIMENT = [
+  { positive: 88, negative: 12, keywords: ["enak", "recommended", "ramah", "porsi besar"] },
+  { positive: 74, negative: 26, keywords: ["worth it", "lezat", "tempatnya nyaman"] },
+  { positive: 91, negative: 9,  keywords: ["terbaik", "murah", "cepat", "segar"] },
+  { positive: 67, negative: 33, keywords: ["lumayan", "enak", "agak lama"] },
+  { positive: 82, negative: 18, keywords: ["juara", "mantap", "harga pas"] },
+];
+
+function showRestaurantResultPage(foodName, restaurants) {
   injectLoaderAndResultCSS();
 
   const fallback = [
@@ -1237,59 +1487,209 @@ function showRestaurantResultPage(foodName, restaurants) {
 
   const list = restaurants && restaurants.length > 0 ? restaurants : fallback;
 
-  const popup = document.createElement("div");
-  popup.id = "restaurantResultPopup";
-  popup.className = "rr-popup";
+  const nearbyContent = document.getElementById("nearbyContent");
+  if (!nearbyContent) return;
 
-  popup.innerHTML = `
-    <div class="rr-popup-box">
-      <button class="rr-popup-close" onclick="closeRestaurantResultPage()">×</button>
+  nearbyContent.innerHTML = `
+    <h2 class="rr-nearby-title">${foodName}</h2>
+    <div class="trending-badge" style="margin-bottom:16px;">🎉 ${list.length} Restoran Ditemukan</div>
 
-      <p class="small-text">PILIHAN KAMU</p>
-      <h1 class="rr-popup-title">${foodName}</h1>
-      <div class="trending-badge">🎉 ${list.length} Restoran Ditemukan</div>
-
-      <div class="rr-popup-list">
-        ${list.map((r, i) => `
-          <div class="rr-card">
+    <div class="rr-popup-list">
+      ${list.map((r, i) => {
+        const img = r.image_url || RESTAURANT_DUMMY_IMAGES[i % RESTAURANT_DUMMY_IMAGES.length];
+        const sentiment = DUMMY_SENTIMENT[i % DUMMY_SENTIMENT.length];
+        const rname = (r.restaurant_name || foodName).replace(/'/g, "\\'");
+        const rnameSafe = r.restaurant_name || "Nama Restoran";
+        return `
+        <div class="rr-card">
+          <div class="rr-card-img-wrap">
             <div class="rr-rank">${i + 1}</div>
+            <img class="rr-card-img" src="${img}" alt="${rnameSafe}" onerror="this.src='https://picsum.photos/120/120'">
+          </div>
 
-            <div class="rr-card-body">
-              <div class="rr-card-top">
-                <div>
-                  <div class="rr-card-name">${r.restaurant_name || "Nama Restoran"}</div>
-                  <div class="rr-card-food">🍽️ ${r.food_name || foodName}</div>
+          <div class="rr-card-body">
+            <div class="rr-card-top">
+              <div>
+                <div class="rr-card-name">${rnameSafe}</div>
+                <div class="rr-card-food">🍽️ ${r.food_name || foodName}</div>
+              </div>
+              <div class="rr-card-rating">⭐ ${r.rating || "–"}</div>
+            </div>
+
+            <div class="rr-card-addr">
+              📍 ${r.address || r.city || "Lokasi tidak tersedia"}
+              ${r.count_rating ? `<span class="rr-review-count">${Number(r.count_rating).toLocaleString()} ulasan</span>` : ""}
+            </div>
+
+            <div class="rr-sentiment-row">
+              <div class="rr-sentiment-bar-wrap">
+                <div class="rr-sentiment-bar">
+                  <div class="rr-sentiment-pos" style="width:${sentiment.positive}%"></div>
+                  <div class="rr-sentiment-neg" style="width:${sentiment.negative}%"></div>
                 </div>
-                <div class="rr-card-rating">⭐ ${r.rating || "–"}</div>
-              </div>
-
-              <div class="rr-card-addr">
-                📍 ${r.address || r.city || "Lokasi tidak tersedia"}
-                ${r.count_rating ? `<span class="rr-review-count">${Number(r.count_rating).toLocaleString()} ulasan</span>` : ""}
-              </div>
-
-              <div class="rr-card-actions">
-                <button class="rr-btn rr-btn-primary" onclick="openGoogleMaps('${encodeURIComponent(r.restaurant_name || foodName)}')">
-                  🗺️ Buka Maps
-                </button>
-                <button class="rr-btn rr-btn-secondary" onclick="shareRestaurant('${(r.restaurant_name || foodName).replace(/'/g, "\\'")}')">
-                  📤 Bagikan
-                </button>
+                <div class="rr-sentiment-labels">
+                  <span class="rr-sent-pos">😊 ${sentiment.positive}% Positif</span>
+                  <span class="rr-sent-neg">😞 ${sentiment.negative}% Negatif</span>
+                </div>
               </div>
             </div>
+
+            <div class="rr-card-actions">
+              <button class="rr-btn rr-btn-primary" onclick="openGoogleMaps('${encodeURIComponent(r.restaurant_name || foodName)}')">
+                🗺️ Buka Maps
+              </button>
+              <button class="rr-btn rr-btn-secondary" onclick="shareRestaurant('${rname}')">
+                📤 Bagikan
+              </button>
+              <button class="rr-btn rr-btn-detail" onclick="openRestaurantDetail(${i}, '${rname}', '${img}', ${r.rating || 0}, ${r.count_rating || 0}, '${(r.address || r.city || '').replace(/'/g, "\\'")}', ${sentiment.positive}, ${sentiment.negative}, '${sentiment.keywords.join(',')}')">
+                🔍 Selengkapnya
+              </button>
+            </div>
           </div>
-        `).join("")}
+        </div>
+      `}).join("")}
+    </div>
+  `;
+
+  // Navigasi ke halaman nearbyPage
+  showPage("nearbyPage");
+}
+
+function openRestaurantDetail(idx, name, img, rating, countRating, address, posPercent, negPercent, keywordsStr) {
+  const existing = document.getElementById("rrDetailModal");
+  if (existing) existing.remove();
+
+  const keywords = (keywordsStr || "").split(",").filter(Boolean);
+  const neutralPercent = Math.max(0, 100 - posPercent - negPercent);
+
+  // Tentukan deskripsi & tags berdasarkan nama makanan (sama seperti openFoodDetail)
+  const title = (name || "").toLowerCase();
+  let desc = "Chewy rice cakes simmered in a sweet-and-spicy gochujang sauce with fish cake and scallions.";
+  let tags = ["Spicy", "Savory", "Halal-friendly"];
+  let score = 67;
+
+  if (title.includes("burger")) {
+    desc = "A juicy double smash burger with crispy edges, melted cheese, fresh vegetables, and a soft toasted bun.";
+    tags = ["Cheesy", "Beef", "Crispy"]; score = 74;
+  } else if (title.includes("ramen")) {
+    desc = "Warm Japanese ramen served with rich broth, noodles, egg, and savory toppings.";
+    tags = ["Savory", "Comfort", "Japanese"]; score = 81;
+  } else if (title.includes("sushi") || title.includes("salmon")) {
+    desc = "Fresh salmon sushi platter served with rice, seaweed, soy sauce, and wasabi.";
+    tags = ["Fresh", "Sushi", "Salmon"]; score = 78;
+  } else if (title.includes("nasi")) {
+    desc = "Classic Indonesian fried rice with smoky aroma, savory seasoning, egg, and local spices.";
+    tags = ["Local", "Savory", "Affordable"]; score = 86;
+  }
+
+  // Gunakan skor sentimen jika tersedia
+  const displayScore = posPercent > 0 ? posPercent : score;
+
+  const modal = document.createElement("div");
+  modal.id = "rrDetailModal";
+  modal.innerHTML = `
+    <div class="rrd-overlay" onclick="closeRestaurantDetail()">
+      <div class="rrd-box" onclick="event.stopPropagation()">
+        <button class="rrd-close" onclick="closeRestaurantDetail()">×</button>
+
+        <!-- HERO (mirip detail-hero) -->
+        <div class="rrd-hero">
+          <img class="rrd-img" src="${img}" alt="${name}" onerror="this.src='https://picsum.photos/400/200'">
+          <div class="rrd-img-overlay"></div>
+          <div class="rrd-hero-info">
+            <div class="price-tag detail-price" style="margin-bottom:8px;">${address || "Bandung"}</div>
+            <h2 class="rrd-name">${name}</h2>
+          </div>
+        </div>
+
+        <!-- STATS (mirip detail-stats) -->
+        <div class="rrd-body">
+          <div class="rrd-stats-row">
+            <div class="rrd-stat">
+              <b>⭐ ${rating || "–"}</b>
+              <span>${countRating ? Number(countRating).toLocaleString() + " reviews" : "reviews"}</span>
+            </div>
+            <div class="rrd-stat-div"></div>
+            <div class="rrd-stat">
+              <b>📍 ${address ? address.split(",")[0] : "Bandung"}</b>
+              <span>from you</span>
+            </div>
+            <div class="rrd-stat-div"></div>
+            <div class="rrd-stat">
+              <b>🕒</b>
+              <span>11:00–22:00</span>
+            </div>
+          </div>
+
+          <!-- ABOUT THIS DISH -->
+          <h3 style="font-size:16px;font-weight:800;color:#2b211b;margin:0 0 8px;">About this dish</h3>
+          <p style="font-size:14px;color:#7b6f67;line-height:1.5;margin-bottom:14px;">${desc}</p>
+
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px;">
+            ${tags.map(t => `<span style="background:#fff2e5;color:#ff844d;padding:7px 14px;border-radius:999px;font-size:12px;font-weight:700;">${t}</span>`).join("")}
+          </div>
+
+          <!-- AI REVIEW SUMMARY -->
+          <div class="rrd-section" style="background:white;border-radius:20px;padding:16px;box-shadow:0 8px 24px rgba(0,0,0,.05);">
+            <h3 class="rrd-section-title">✨ AI Review Summary</h3>
+
+            <div class="rrd-sent-labels">
+              <span class="rrd-label-pos">Positive ${posPercent}%</span>
+              <span style="color:#b0a49c;font-size:13px;font-weight:700;">Neutral ${neutralPercent}%</span>
+              <span class="rrd-label-neg">Negative ${negPercent}%</span>
+            </div>
+
+            <div class="rrd-sent-bar" style="margin:10px 0;">
+              <div class="rrd-sent-pos-fill" style="width:${posPercent}%"><span>${posPercent}%</span></div>
+              <div style="height:100%;background:#FFC107;width:${neutralPercent}%;display:flex;align-items:center;justify-content:center;color:#2b211b;font-size:11px;font-weight:800;">${neutralPercent > 5 ? neutralPercent + "%" : ""}</div>
+              <div class="rrd-sent-neg-fill" style="width:${negPercent}%"><span>${negPercent > 5 ? negPercent + "%" : ""}</span></div>
+            </div>
+
+            <p style="font-size:11px;color:#b0a49c;font-weight:700;letter-spacing:.5px;margin:12px 0 8px;">MOST MENTIONED</p>
+            <div class="rrd-keywords">
+              ${keywords.map(k => `<span class="rrd-keyword">${k}</span>`).join("")}
+            </div>
+          </div>
+
+          <!-- RECOMMENDATION SCORE -->
+          <div class="rrd-section" style="background:white;border-radius:20px;padding:16px;box-shadow:0 8px 24px rgba(0,0,0,.05);margin-top:14px;text-align:center;">
+            <h3 class="rrd-section-title" style="text-align:left;">Recommendation score</h3>
+            <h4 style="font-size:32px;font-weight:900;color:#ff844d;margin:4px 0;">
+              ${displayScore} <span style="font-size:16px;color:#7b6f67;font-weight:600;">/ 100 match for you</span>
+            </h4>
+            <p style="font-size:13px;color:#b0a49c;">Based on your swipes, taste profile, and location.</p>
+          </div>
+
+          <!-- ACTIONS -->
+          <div class="rrd-actions" style="margin-top:20px;">
+            <button class="rr-btn rr-btn-secondary" onclick="openGoogleMaps('${encodeURIComponent(name)}'); closeRestaurantDetail();">
+              ➤ Directions
+            </button>
+            <button class="rr-btn rr-btn-primary" onclick="closeRestaurantDetail();">
+              Order now
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   `;
 
-  document.body.appendChild(popup);
+  document.body.appendChild(modal);
+}
+
+function closeRestaurantDetail() {
+  const modal = document.getElementById("rrDetailModal");
+  if (modal) {
+    modal.style.opacity = "0";
+    modal.style.transition = "opacity 0.3s ease";
+    setTimeout(() => modal.remove(), 300);
+  }
 }
 
 function closeRestaurantResultPage() {
-  const popup = document.getElementById("restaurantResultPopup");
-  if (popup) popup.remove();
-
+  // Hasil rekomendasi kini ditampilkan di halaman Lokasi, bukan popup
+  // Kembali ke halaman home dan lanjutkan ke makanan berikutnya
+  showPage("homePage");
   nextFood();
 }
 
@@ -1383,7 +1783,7 @@ function injectLoaderAndResultCSS() {
       animation: flShimmer 1.5s linear infinite;
     }
 
-    .fl-steps { display: flex; flex-direction: column; gap: 6px; text-align: left; }
+    .fl-steps { display: flex; flex-direction: column; gap: 6px; text-align: left; max-height: 220px; overflow-y: auto; scroll-behavior: smooth; }
     .fl-step {
       display: flex; align-items: center; gap: 10px;
       padding: 9px 12px; border-radius: 14px;
@@ -1435,21 +1835,9 @@ function injectLoaderAndResultCSS() {
     .rr-card {
       background: white;
       border-radius: 26px;
-      padding: 14px;
-      display: flex;
-      gap: 14px;
-      align-items: flex-start;
+      overflow: hidden;
       box-shadow: 0 12px 30px rgba(0,0,0,.05);
       animation: rrSlideUp 0.4s ease both;
-    }
-
-    .rr-card-left { padding-top: 2px; }
-    .rr-rank {
-      width: 32px; height: 32px; border-radius: 50%;
-      background: linear-gradient(135deg,#ff844d,#ff5f5f);
-      color: white; font-size: 14px; font-weight: 900;
-      display: flex; align-items: center; justify-content: center;
-      flex-shrink: 0;
     }
 
     .rr-card-body { flex: 1; display: flex; flex-direction: column; gap: 8px; }
@@ -1489,6 +1877,175 @@ function injectLoaderAndResultCSS() {
       text-align: center; padding: 48px 20px;
       color: #7b6f67;
     }
+
+    /* ── RESTAURANT CARD IMAGE ────────────────────────────────── */
+    .rr-card {
+      display: flex;
+      gap: 0;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .rr-card-img-wrap {
+      position: relative;
+      width: 100%; height: 140px;
+      overflow: hidden;
+      border-radius: 26px 26px 0 0;
+      flex-shrink: 0;
+    }
+    .rr-card-img {
+      width: 100%; height: 100%;
+      object-fit: cover;
+      transition: transform 0.3s ease;
+    }
+    .rr-card:hover .rr-card-img { transform: scale(1.04); }
+    .rr-rank {
+      position: absolute;
+      top: 10px; left: 10px;
+      width: 32px; height: 32px;
+      border-radius: 50%;
+      background: linear-gradient(135deg,#ff844d,#ff5f5f);
+      color: white; font-size: 14px; font-weight: 900;
+      display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 4px 12px rgba(255,95,95,.4);
+      z-index: 2;
+    }
+    .rr-card-body {
+      padding: 14px 14px 14px;
+    }
+
+    /* ── SENTIMENT ROW ─────────────────────────────────────────── */
+    .rr-sentiment-row { margin: 4px 0 2px; }
+    .rr-sentiment-bar-wrap {}
+    .rr-sentiment-bar {
+      height: 8px; border-radius: 999px;
+      overflow: hidden; display: flex;
+      background: #f0e8df; margin-bottom: 6px;
+    }
+    .rr-sentiment-pos {
+      height: 100%;
+      background: linear-gradient(90deg, #4ade80, #22c55e);
+      border-radius: 999px 0 0 999px;
+      transition: width 0.6s ease;
+    }
+    .rr-sentiment-neg {
+      height: 100%;
+      background: linear-gradient(90deg, #f87171, #ef4444);
+      border-radius: 0 999px 999px 0;
+      transition: width 0.6s ease;
+    }
+    .rr-sentiment-labels {
+      display: flex; justify-content: space-between;
+      font-size: 11px; font-weight: 700;
+    }
+    .rr-sent-pos { color: #16a34a; }
+    .rr-sent-neg { color: #dc2626; }
+
+    /* ── DETAIL BUTTON ─────────────────────────────────────────── */
+    .rr-btn-detail {
+      background: #f0f9ff;
+      color: #0ea5e9;
+      border: 1.5px solid #bae6fd;
+    }
+    .rr-card-actions { flex-wrap: wrap; }
+
+    /* ── RESTAURANT DETAIL MODAL ────────────────────────────────── */
+    @keyframes rrdSlideUp { from{opacity:0;transform:translateY(30px)} to{opacity:1;transform:translateY(0)} }
+
+    .rrd-overlay {
+      position: fixed; inset: 0;
+      background: rgba(43,33,27,.6);
+      backdrop-filter: blur(10px);
+      z-index: 999999;
+      display: flex; align-items: flex-end; justify-content: center;
+    }
+    .rrd-box {
+      background: #fff8ef;
+      border-radius: 36px 36px 0 0;
+      width: 100%; max-width: 430px;
+      max-height: 88vh;
+      overflow-y: auto;
+      animation: rrdSlideUp 0.4s cubic-bezier(0.34,1.2,0.64,1);
+      position: relative;
+    }
+    .rrd-close {
+      position: absolute; top: 16px; right: 16px;
+      width: 36px; height: 36px; border-radius: 50%;
+      background: white; border: none;
+      font-size: 20px; color: #7b6f67;
+      cursor: pointer; z-index: 2;
+      box-shadow: 0 4px 14px rgba(0,0,0,.1);
+      display: flex; align-items: center; justify-content: center;
+    }
+    .rrd-hero {
+      position: relative; width: 100%; height: 200px;
+      overflow: hidden; border-radius: 36px 36px 0 0;
+    }
+    .rrd-img { width: 100%; height: 100%; object-fit: cover; }
+    .rrd-img-overlay {
+      position: absolute; inset: 0;
+      background: linear-gradient(to bottom, transparent 30%, rgba(43,33,27,.75) 100%);
+    }
+    .rrd-hero-info {
+      position: absolute; bottom: 18px; left: 20px; right: 20px; z-index: 1;
+    }
+    .rrd-name { font-size: 20px; font-weight: 900; color: white; margin-bottom: 4px; }
+    .rrd-meta { font-size: 13px; color: rgba(255,255,255,.85); font-weight: 600; }
+
+    .rrd-body { padding: 20px 20px 100px; }
+
+    .rrd-stats-row {
+      display: flex; align-items: center; justify-content: space-between;
+      background: white; border-radius: 20px; padding: 16px 20px;
+      margin-bottom: 20px;
+      box-shadow: 0 8px 24px rgba(0,0,0,.05);
+    }
+    .rrd-stat { text-align: center; flex: 1; }
+    .rrd-stat b { display: block; font-size: 16px; font-weight: 900; color: #ff844d; }
+    .rrd-stat span { font-size: 10px; color: #7b6f67; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; }
+    .rrd-stat-div { width: 1px; height: 36px; background: #f0e8df; }
+
+    .rrd-section { margin-bottom: 20px; }
+    .rrd-section-title { font-size: 14px; font-weight: 800; color: #2b211b; margin-bottom: 10px; }
+
+    .rrd-sent-labels {
+      display: flex; justify-content: space-between; margin-bottom: 8px;
+      font-size: 13px; font-weight: 700;
+    }
+    .rrd-label-pos { color: #16a34a; }
+    .rrd-label-neg { color: #dc2626; }
+
+    .rrd-sent-bar {
+      height: 28px; border-radius: 14px;
+      overflow: hidden; display: flex;
+      background: #f0e8df;
+      box-shadow: inset 0 2px 6px rgba(0,0,0,.06);
+    }
+    .rrd-sent-pos-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #4ade80, #22c55e);
+      display: flex; align-items: center; justify-content: center;
+      color: white; font-size: 11px; font-weight: 800;
+      transition: width 0.7s ease;
+    }
+    .rrd-sent-neg-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #f87171, #ef4444);
+      display: flex; align-items: center; justify-content: center;
+      color: white; font-size: 11px; font-weight: 800;
+      transition: width 0.7s ease;
+    }
+    .rrd-sent-note { font-size: 11px; color: #b0a49c; margin-top: 6px; }
+
+    .rrd-keywords { display: flex; flex-wrap: wrap; gap: 8px; }
+    .rrd-keyword {
+      background: white;
+      border: 1.5px solid #ffe4dc;
+      color: #ff844d;
+      padding: 6px 14px; border-radius: 999px;
+      font-size: 12px; font-weight: 700;
+    }
+    .rrd-address { font-size: 13px; color: #7b6f67; font-weight: 600; }
+    .rrd-actions { display: flex; gap: 10px; margin-top: 24px; }
   `;
   document.head.appendChild(s);
 }
