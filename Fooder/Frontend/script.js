@@ -202,7 +202,9 @@ function showPage(pageId) {
   if (pageNavMap[pageId] !== undefined) {
     navButtons[pageNavMap[pageId]].classList.add("active");
   }
-
+  if (pageId === "favoritePage") {
+  renderFavoritePage();
+  }
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
@@ -412,26 +414,71 @@ function nextFood() {
   updateFoodCard();
 }
 
+function saveLikedFood(food) {
+  if (!food) return;
+
+  const likedFoods = JSON.parse(localStorage.getItem("likedFoods")) || [];
+
+  const alreadyLiked = likedFoods.some((item) => item.id === food.id);
+
+  if (!alreadyLiked) {
+    likedFoods.push(food);
+    localStorage.setItem("likedFoods", JSON.stringify(likedFoods));
+  }
+}
+
+function renderFavoritePage() {
+  const favoriteGrid = document.getElementById("favoriteGrid");
+  if (!favoriteGrid) return;
+
+  const likedFoods = JSON.parse(localStorage.getItem("likedFoods")) || [];
+
+  if (likedFoods.length === 0) {
+    favoriteGrid.innerHTML = `
+      <div class="empty-favorite">
+        <h3>Belum ada makanan yang disukai</h3>
+        <p>Swipe kanan dulu makanan yang kamu suka, nanti muncul di sini.</p>
+      </div>
+    `;
+    return;
+  }
+
+  favoriteGrid.innerHTML = likedFoods.map((food) => `
+    <div class="fav-card" onclick="openFoodDetail(
+      '${food.food_name}',
+      '${food.restaurant_name || "Restaurant"}',
+      '${food.img || food.image}',
+      '${food.rating || "4.5"}',
+      '${food.distance || "1 km"}',
+      '${food.insight || "This food is recommended for you."}',
+      '${food.cuisine || "Food"}'
+    )">
+      <img src="${food.img || food.image || "https://picsum.photos/400/400"}">
+      <button>❤️</button>
+      <h4>${food.food_name}</h4>
+      <p>⭐ ${food.rating || "4.5"} · ${food.distance || "-"}</p>
+    </div>
+  `).join("");
+}
+
 function swipeRight() {
   if (!foodCard) return;
 
   const currentFood = foods[foodIndex];
+  saveLikedFood(currentFood);
 
-  // ── Tambah hitungan swipe kanan global (bukan per makanan) ──
   rightSwipeCount++;
 
   saveSwipe("like");
 
-  // Tampilkan indikator progress swipe
   showSwipeProgress(rightSwipeCount, currentFood);
 
   foodCard.style.transition = "0.35s ease";
   foodCard.style.transform = "translateX(520px) rotate(25deg)";
 
   setTimeout(() => {
-    // Swipe ke-5 → makanan SAAT INI yang terpilih
     if (rightSwipeCount >= RIGHT_SWIPE_THRESHOLD) {
-      rightSwipeCount = 0; // reset untuk sesi berikutnya
+      rightSwipeCount = 0; 
       triggerFoodMatch(currentFood);
     } else {
       nextFood();
@@ -909,26 +956,108 @@ multiSelectChips.forEach((chip) => {
   });
 });
 
-/* SEARCH */
+/* SEARCH FILTER */
 
 const searchInput = document.querySelector(".search-box input");
-const listCards = document.querySelectorAll(".list-card");
+const searchCards = document.querySelectorAll("#searchResultList .list-card");
+const searchResultCount = document.getElementById("searchResultCount");
+
+const distanceRange = document.getElementById("distanceRange");
+const distanceValue = document.getElementById("distanceValue");
+const ratingRange = document.getElementById("ratingRange");
+const ratingValue = document.getElementById("ratingValue");
+
+function getActiveFilterText(title) {
+  const titles = [...document.querySelectorAll(".filter-title")];
+  const targetTitle = titles.find((item) => item.textContent.trim().toLowerCase() === title);
+
+  if (!targetTitle) return "all";
+
+  const chips = targetTitle.nextElementSibling;
+  const activeChip = chips?.querySelector("span.active");
+
+  if (!activeChip) return "all";
+
+  return activeChip.textContent
+    .replace(/[^\w\s-]/g, "")
+    .trim()
+    .toLowerCase();
+}
+
+function applySearchFilters() {
+  const keyword = searchInput?.value.toLowerCase() || "";
+  const cuisine = getActiveFilterText("cuisine");
+  const taste = getActiveFilterText("taste");
+  const dietary = getActiveFilterText("dietary");
+
+  const maxDistance = Number(distanceRange?.value || 10);
+  const minRating = Number(ratingRange?.value || 1);
+
+  let visibleCount = 0;
+
+  searchCards.forEach((card) => {
+    const text = card.textContent.toLowerCase();
+    const cardCuisine = card.dataset.cuisine || "";
+    const cardTaste = card.dataset.taste || "";
+    const cardDietary = card.dataset.dietary || "";
+    const cardDistance = Number(card.dataset.distance || 999);
+    const cardRating = Number(card.dataset.rating || 0);
+
+    const matchKeyword = text.includes(keyword);
+    const matchCuisine = cuisine === "all" || cardCuisine.includes(cuisine);
+    const matchTaste = cardTaste.includes(taste);
+    const matchDietary = cardDietary.includes(dietary);
+    const matchDistance = cardDistance <= maxDistance;
+    const matchRating = cardRating >= minRating;
+
+    const isVisible =
+      matchKeyword &&
+      matchCuisine &&
+      matchTaste &&
+      matchDietary &&
+      matchDistance &&
+      matchRating;
+
+    card.style.display = isVisible ? "flex" : "none";
+
+    if (isVisible) visibleCount++;
+  });
+
+  if (searchResultCount) {
+    searchResultCount.innerText = `${visibleCount} results`;
+  }
+}
 
 if (searchInput) {
-  searchInput.addEventListener("input", () => {
-    const keyword = searchInput.value.toLowerCase();
+  searchInput.addEventListener("input", applySearchFilters);
+}
 
-    listCards.forEach((card) => {
-      const text = card.textContent.toLowerCase();
-
-      if (text.includes(keyword)) {
-        card.style.display = "flex";
-      } else {
-        card.style.display = "none";
-      }
-    });
+if (distanceRange && distanceValue) {
+  distanceRange.addEventListener("input", function () {
+    distanceValue.innerText = `${this.value} km`;
+    applySearchFilters();
   });
 }
+
+if (ratingRange && ratingValue) {
+  ratingRange.addEventListener("input", function () {
+    ratingValue.innerText = `${Number(this.value).toFixed(1)}+`;
+    applySearchFilters();
+  });
+}
+
+document.querySelectorAll("#searchPage .chips span").forEach((chip) => {
+  chip.addEventListener("click", () => {
+    const parent = chip.parentElement;
+
+    parent.querySelectorAll("span").forEach((item) => {
+      item.classList.remove("active");
+    });
+
+    chip.classList.add("active");
+    applySearchFilters();
+  });
+});
 
 /* SAVE BUTTON */
 
