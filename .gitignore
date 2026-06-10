@@ -20,3 +20,7 @@ venv/
 
 # VSCode
 .vscode/
+
+.env
+.env.local
+.env.production

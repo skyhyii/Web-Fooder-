@@ -1,0 +1,8 @@
+models/
+*.pkl
+__pycache__/
+venv/
+*.pyc
+.env
+.env.local
+.env.production

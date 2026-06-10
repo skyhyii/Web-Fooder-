@@ -8,6 +8,8 @@ const rejectBtn = document.querySelector(".reject-btn");
 const likeBtn = document.querySelector(".like-btn");
 const darkModeToggle = document.getElementById("darkModeToggle");
 
+let currentCuisine = "All";
+
 if (localStorage.getItem("darkMode") === "enabled") {
   document.body.classList.add("dark-mode");
 
@@ -34,10 +36,6 @@ let foodIndex = 0;
 let startX = 0;
 let currentX = 0;
 let isDragging = false;
-
-// ── Swipe counter untuk deteksi 5x swipe kanan ────────────────────────────
-let rightSwipeCount = 0;
-const RIGHT_SWIPE_THRESHOLD = 5;
 
 const fallbackFoods = [
   {
@@ -94,6 +92,157 @@ const fallbackFoods = [
   }
 ];
 
+function renderSearchFoods(
+  foods
+){
+
+  const list =
+    document.getElementById(
+      "searchResultList"
+    );
+
+  const resultCount =
+    document.getElementById(
+      "searchResultCount"
+    );
+
+  if(resultCount){
+    resultCount.textContent =
+      `${foods.length} results`;
+  }
+
+  list.innerHTML =
+    foods.map(food => `
+
+      <div class="list-card">
+
+        <img src="${
+          food.img_url
+        }">
+
+        <div>
+
+          <h4>
+            ${toTitleCase(
+              food.food_name
+            )}
+          </h4>
+
+          <p>
+            ${toTitleCase(
+              food.category
+            )}
+          </p>
+
+          <small>
+            ${
+              food.origin_country
+            }
+          </small>
+
+        </div>
+
+      </div>
+
+    `).join("");
+}
+
+async function loadFoodsByCuisine(
+  cuisine
+) {
+  try {
+    const response =
+      await fetch(
+        `${API_BASE_URL}/foods/cuisine/${cuisine}`
+      );
+    const foods =
+      await response.json();
+    renderSearchFoods(
+      foods
+    );
+  }
+  catch(err){
+    console.error(err);
+  }
+}
+
+async function loadSearchFoods() {
+  const list =
+    document.getElementById(
+      "searchResultList"
+    );
+  if (!list) return;
+  try {
+    const response =
+      await fetch(
+        `${API_BASE_URL}/foods`
+      );
+    const foods =
+      await response.json();
+    const firstTen =
+      foods.slice(0, 10);
+    list.innerHTML =
+      firstTen.map(food => `
+        <div
+          class="list-card"
+          data-cuisine="${
+            (
+              food.origin_country ||
+              ""
+            ).toLowerCase()
+          }"
+        >
+          <img src="${
+            food.img_url ||
+            "https://picsum.photos/300"
+          }">
+          <div>
+            <h4>
+              ${toTitleCase(
+                food.food_name
+              )}
+            </h4>
+            <p>
+              ${
+                food.category ||
+                "Food"
+              }
+            </p>
+            <small>
+              ${
+                food.origin_country ||
+                "Unknown"
+              }
+            </small>
+          </div>
+        </div>
+      `).join("");
+      const resultCount =
+        document.getElementById(
+          "searchResultCount"
+        );
+
+      if(resultCount){
+        resultCount.textContent =
+          `${firstTen.length} results`;
+      }
+  } catch(err) {
+    console.error(
+      "Search foods error:",
+      err
+    );
+  }
+  console.log(
+    "TOTAL FOODS:",
+    foods.length
+  );
+
+  console.log(
+    "FIRST TEN:",
+    firstTen
+  );
+}
+
 function capitalizeWords(text) {
   if (!text) return "";
 
@@ -111,17 +260,25 @@ async function fetchFoods() {
     const response = await fetch(`${API_BASE_URL}/foods`);
     const data = await response.json();
 
-    foods = data.map((food, index) => ({
-      id: food.id || index + 1,
-      food_name: capitalizeWords(
-          food.food_name || food.name || "Food Name"
-      ),
-      img: food.img_url || food.image || "https://picsum.photos/500/700",
-      image: food.img_url || food.img || "https://picsum.photos/500/700",
-      cuisine: food.origin_country || food.cuisine || "Food · $$",
-      tags: food.tags || ["Recommended"],
-      insight: food.insight || "This food is recommended based on rating and user preference.",
-    }));
+    foods = data.map((food, index) => {
+      // Bangun tags dari category dan ingredient karena API tidak kirim field tags
+      const categoryStr = food.category || "";
+      const ingredientStr = food.ingredient || "";
+      const autoTags = [
+        ...categoryStr.split(",").map(s => s.trim()).filter(Boolean),
+        ...ingredientStr.split(",").map(s => s.trim()).filter(Boolean).slice(0, 2)
+      ].slice(0, 4);
+
+      return {
+        id: food.id || index + 1,
+        food_name: capitalizeWords(food.food_name || food.title_cleaned || food.name || "Food Name"),
+        img: food.img_url || "https://picsum.photos/500/700",
+        image: food.img_url || "https://picsum.photos/500/700",
+        cuisine: [food.category, food.origin_country].filter(Boolean).join(" · ") || "Food",
+        tags: autoTags.length > 0 ? autoTags : ["Recommended"],
+        insight: food.description || food.insight || "This food is recommended based on rating and user preference.",
+      };
+    });
 
     if (foods.length === 0) {
       foods = fallbackFoods;
@@ -159,7 +316,7 @@ function renderUserProfile(user) {
   const avatarEl = document.getElementById("profileAvatar");
   const likeEl = document.getElementById("likedCount");
   const swipeEl = document.getElementById("swipeCount");
-  const matchEl = document.getElementById("matchPercent");
+  const matchEl = document.getElementById("matchCount");
   const allergyEl = document.getElementById("allergie");
 
   if (nameEl) nameEl.innerText = user.username || user.name || "User";
@@ -167,21 +324,44 @@ function renderUserProfile(user) {
   if (avatarEl) avatarEl.innerText = (user.username || user.name || "U").charAt(0).toUpperCase();
   if (likeEl) likeEl.innerText = user.like || 0;
   if (swipeEl) swipeEl.innerText = user.swipe || 0;
-  if (matchEl) matchEl.innerText = `${user.match || 0}%`;
+  if (matchEl) matchEl.innerText = user.match || 0;
   if (allergyEl) allergyEl.innerText = user.allergy || "Tidak ada";
+}
+
+function showLoading() {
+  const overlay =
+    document.getElementById(
+      "loadingOverlay"
+    );
+  overlay.classList.add("active");
+}
+function hideLoading() {
+  const overlay =
+    document.getElementById(
+      "loadingOverlay"
+    );
+  overlay.classList.remove("active");
 }
 
 /* PAGE NAVIGATION */
 
 function showPage(pageId) {
-  pages.forEach((page) => page.classList.remove("active"));
+  pages.forEach((page) =>
+    page.classList.remove("active")
+  );
 
-  const selectedPage = document.getElementById(pageId);
+  const selectedPage =
+    document.getElementById(pageId);
+
   if (!selectedPage) return;
 
   selectedPage.classList.add("active");
 
-  const authPages = ["loginPage", "registerPage", "successPage"];
+  const authPages = [
+    "loginPage",
+    "registerPage",
+    "successPage"
+  ];
 
   if (authPages.includes(pageId)) {
     document.body.classList.add("auth-active");
@@ -189,7 +369,9 @@ function showPage(pageId) {
     document.body.classList.remove("auth-active");
   }
 
-  navButtons.forEach((button) => button.classList.remove("active"));
+  navButtons.forEach((button) =>
+    button.classList.remove("active")
+  );
 
   const pageNavMap = {
     homePage: 0,
@@ -200,12 +382,24 @@ function showPage(pageId) {
   };
 
   if (pageNavMap[pageId] !== undefined) {
-    navButtons[pageNavMap[pageId]].classList.add("active");
+    navButtons[
+      pageNavMap[pageId]
+    ].classList.add("active");
   }
+
   if (pageId === "favoritePage") {
-  renderFavoritePage();
+    renderFavoritePage();
   }
-  window.scrollTo({ top: 0, behavior: "smooth" });
+
+  if (pageId === "searchPage") {
+    currentCuisine = "All";
+    performSearch();
+  }
+
+  window.scrollTo({
+    top: 0,
+    behavior: "smooth"
+  });
 }
 
 window.showPage = showPage;
@@ -300,11 +494,50 @@ async function registerUser() {
 
 window.registerUser = registerUser;
 
+async function logoutUser() {
+  const currentUser =
+    JSON.parse(
+      localStorage.getItem(
+        "fooderUser"
+      )
+    );
+
+  if (currentUser) {
+    try {
+      await fetch(
+        `${API_BASE_URL}/logout/${currentUser.id}`,
+        {
+          method: "POST"
+        }
+      );
+    } catch (err) {
+      console.error(err);
+    }
+  }
+
+  localStorage.clear();
+  sessionStorage.clear();
+
+  foods = [];
+  foodIndex = 0;
+
+  showPage("loginPage");
+}
+
+window.logoutUser = logoutUser;
+
 /* DAILY PREFERENCE MODAL */
 
 function openDailyPreference() {
   if (dailyPreferenceModal) {
     dailyPreferenceModal.classList.add("active");
+    const modalContent =
+      dailyPreferenceModal.querySelector(
+        ".modal-content"
+      );
+    if (modalContent) {
+      modalContent.scrollTop = 0;
+    }
   }
 }
 
@@ -318,50 +551,164 @@ function closeDailyPreference() {
 
 window.closeDailyPreference = closeDailyPreference;
 
-function startSwipeFromPreference() {
-  const selectedTodayPreferences = [...document.querySelectorAll(".daily-chips span.active")]
-    .map((chip) => chip.textContent);
-
-  localStorage.setItem(
-    "todayPreference",
-    JSON.stringify(selectedTodayPreferences)
-  );
-
-  console.log("Today's preference:", selectedTodayPreferences);
-
-  closeDailyPreference();
-  showPage("homePage");
+async function startSwipeFromPreference() {
+  showLoading();
+  try {
+    document.getElementById(
+      "loadingText"
+    ).textContent =
+      "Saving your preferences...";
+    const selectedTodayPreferences =
+      [...document.querySelectorAll(".daily-chips span.active")]
+        .map(chip => chip.textContent.trim());
+    console.log(
+      "Today's preference:",
+      selectedTodayPreferences
+    );
+    localStorage.setItem(
+      "todayPreference",
+      JSON.stringify(selectedTodayPreferences)
+    );
+    const currentUser =
+      JSON.parse(
+        localStorage.getItem("fooderUser")
+      );
+    if (!currentUser) {
+      console.error("User not found");
+      hideLoading();
+      return;
+    }
+    const moods = [];
+    const foodTypes = [];
+    const cuisines = [];
+    const requirements = [];
+    selectedTodayPreferences.forEach(pref => {
+      if (
+        [
+          "Spicy",
+          "Sweet",
+          "Savory",
+          "Comfort Food",
+          "Healthy"
+        ].includes(pref)
+      ) {
+        moods.push(pref);
+      }
+      else if (
+        [
+          "Rice",
+          "Noodles",
+          "Chicken",
+          "Seafood",
+          "Snack",
+          "Dessert"
+        ].includes(pref)
+      ) {
+        foodTypes.push(pref);
+      }
+      else if (
+        [
+          "Indonesian",
+          "Korean",
+          "Japanese",
+          "Western",
+          "Chinese"
+        ].includes(pref)
+      ) {
+        cuisines.push(pref);
+      }
+      else {
+        requirements.push(pref);
+      }
+    });
+    // ==========================================
+    // SAVE PREFERENCES
+    // ==========================================
+    const response = await fetch(
+      `${API_BASE_URL}/preferences`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          user_id: currentUser.id,
+          moods: moods,
+          food_types: foodTypes,
+          cuisines: cuisines,
+          requirements: requirements
+        })
+      }
+    );
+    const result =
+      await response.json();
+    console.log(
+      "Preference Saved:",
+      result
+    );
+    // ==========================================
+    // BUILD MODEL
+    // ==========================================
+    document.getElementById(
+      "loadingText"
+    ).textContent =
+      "Building recommendation model...";
+    await new Promise(resolve =>
+      setTimeout(resolve, 500)
+    );
+    // ==========================================
+    // LOAD RECOMMENDATIONS
+    // ==========================================
+    document.getElementById(
+      "loadingText"
+    ).textContent =
+      "Calculating your recommendations...";
+    const recResponse = await fetch(
+      `${API_BASE_URL}/recommendations/personal/${currentUser.id}`
+    );
+    const recData =
+      await recResponse.json();
+    console.log(
+      "INITIAL RECOMMENDATIONS:",
+      recData
+    );
+    if (recData.recommendations) {
+      foods =
+        recData.recommendations;
+      foodIndex = 0;
+      updateFoodCard();
+    }
+    // ==========================================
+    // FINISH
+    // ==========================================
+    closeDailyPreference();
+    showPage("homePage");
+  }
+  catch (err) {
+    console.error(
+      "Failed to start recommendation flow:",
+      err
+    );
+  }
+  finally {
+    hideLoading();
+  }
 }
 
 window.startSwipeFromPreference = startSwipeFromPreference;
 
-/* FOOD CARD */
+function showLoading() {
+  document
+    .getElementById("loadingOverlay")
+    .classList.add("active");
 
-function updateFoodCard() {
-  if (!foodCard || foods.length === 0) return;
+}
 
-  const food = foods[foodIndex];
+function hideLoading() {
+  document
+    .getElementById("loadingOverlay")
+    .classList.remove("active");
 
-  document.querySelector(".food-card img").src = food.img || food.image;
-  document.querySelector(".food-card h2").textContent = food.food_name;
-  document.querySelector(".price-tag").textContent = food.cuisine;
-
-  const tagBox = document.querySelector(".food-tags");
-  tagBox.innerHTML = "";
-
-  food.tags.forEach((tag) => {
-    const span = document.createElement("span");
-    span.textContent = tag;
-    tagBox.appendChild(span);
-  });
-
-  foodCard.style.transition = "none";
-  foodCard.style.transform = "translateX(0) rotate(0deg) scale(0.95)";
-
-  setTimeout(() => {
-    foodCard.style.transition = "0.25s ease";
-    foodCard.style.transform = "translateX(0) rotate(0deg) scale(1)";
-  }, 50);
 }
 
 async function saveSwipe(action) {
@@ -373,16 +720,62 @@ async function saveSwipe(action) {
   const userId = currentUser?.id || 1;
 
   try {
-    await fetch(`${API_BASE_URL}/swipe`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        user_id: userId,
-        food_id: foods[foodIndex].id || foodIndex + 1,
-        action: action
-      })
-    });
+    const swipeResponse = await fetch(
+        `${API_BASE_URL}/swipe`,
+        {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+                user_id: userId,
+                food_id:
+                    foods[foodIndex].food_id ??
+                    foods[foodIndex].id,
+                action: action
+            })
+        }
+    );
 
+    const swipeData =
+        await swipeResponse.json();
+
+    console.log(
+        "SWIPE RESPONSE:",
+        swipeData
+    );
+
+    if (
+        swipeData.match &&
+        swipeData.match.matched
+    ) {
+        console.log(
+            "MATCH FOUND:",
+            swipeData.match.food_name
+        );
+
+        await triggerFoodMatch({
+            food_name:
+                swipeData.match.food_name,
+            image:
+                foods[foodIndex].img_url ||
+                foods[foodIndex].image ||
+                foods[foodIndex].img
+        });
+
+        return;
+    }
+
+    const recResponse = await fetch(
+      `${API_BASE_URL}/recommendations/personal/${userId}`
+    );
+
+    const recData = await recResponse.json();
+
+    console.log("NEW TFIDF RECOMMENDATIONS:", recData);
+    if (recData.recommendations) {
+        foods = recData.recommendations;
+    }
     // Update hitungan lokal di localStorage (swipe DB + sesi ini)
     if (currentUser) {
       currentUser.swipe = (currentUser.swipe || 0) + 1;
@@ -399,6 +792,7 @@ async function saveSwipe(action) {
     }
 
     console.log(`Swipe ${action} saved for user ${userId}`);
+
   } catch (error) {
     console.error("Failed to save swipe:", error);
   }
@@ -406,11 +800,14 @@ async function saveSwipe(action) {
 
 function nextFood() {
   foodIndex++;
-
   if (foodIndex >= foods.length) {
     foodIndex = 0;
   }
-
+  console.log(
+    "SWIPE TO ->",
+    foodIndex,
+    foods[foodIndex]?.food_name
+  );
   updateFoodCard();
 }
 
@@ -428,62 +825,112 @@ function saveLikedFood(food) {
 }
 
 function renderFavoritePage() {
-  const favoriteGrid = document.getElementById("favoriteGrid");
+
+  const favoriteGrid =
+    document.getElementById(
+      "favoriteGrid"
+    );
+
   if (!favoriteGrid) return;
 
-  const likedFoods = JSON.parse(localStorage.getItem("likedFoods")) || [];
+  const likedFoods =
+    JSON.parse(
+      localStorage.getItem(
+        "likedFoods"
+      )
+    ) || [];
 
   if (likedFoods.length === 0) {
+
     favoriteGrid.innerHTML = `
       <div class="empty-favorite">
-        <h3>Belum ada makanan yang disukai</h3>
-        <p>Swipe kanan dulu makanan yang kamu suka, nanti muncul di sini.</p>
+        <h3>
+          Belum ada makanan yang disukai
+        </h3>
+        <p>
+          Swipe kanan dulu makanan yang kamu suka,
+          nanti muncul di sini.
+        </p>
       </div>
     `;
+
     return;
   }
 
-  favoriteGrid.innerHTML = likedFoods.map((food) => `
-    <div class="fav-card" onclick="openFoodDetail(
-      '${food.food_name}',
-      '${food.restaurant_name || "Restaurant"}',
-      '${food.img || food.image}',
-      '${food.rating || "4.5"}',
-      '${food.distance || "1 km"}',
-      '${food.insight || "This food is recommended for you."}',
-      '${food.cuisine || "Food"}'
-    )">
-      <img src="${food.img || food.image || "https://picsum.photos/400/400"}">
-      <button>❤️</button>
-      <h4>${food.food_name}</h4>
-      <p>⭐ ${food.rating || "4.5"} · ${food.distance || "-"}</p>
-    </div>
-  `).join("");
+  favoriteGrid.innerHTML =
+    likedFoods.map(food => `
+
+      <div class="fav-card">
+
+        <img
+          src="${
+            food.img_url ||
+            food.img ||
+            food.image ||
+            'https://picsum.photos/400/400'
+          }"
+          alt="${food.food_name}"
+        >
+
+        <button>❤️</button>
+
+        <h4>
+          ${toTitleCase(
+            food.food_name || "Food"
+          )}
+        </h4>
+
+        <p>
+          ${toTitleCase(
+            food.category || "Other"
+          )}
+        </p>
+
+        <p>
+          ${
+            food.origin_country ||
+            "Unknown"
+          }
+        </p>
+
+      </div>
+
+    `).join("");
 }
 
 function swipeRight() {
   if (!foodCard) return;
 
   const currentFood = foods[foodIndex];
+
   saveLikedFood(currentFood);
 
-  rightSwipeCount++;
-
   saveSwipe("like");
-
-  showSwipeProgress(rightSwipeCount, currentFood);
 
   foodCard.style.transition = "0.35s ease";
   foodCard.style.transform = "translateX(520px) rotate(25deg)";
 
   setTimeout(() => {
-    if (rightSwipeCount >= RIGHT_SWIPE_THRESHOLD) {
-      rightSwipeCount = 0; 
-      triggerFoodMatch(currentFood);
-    } else {
-      nextFood();
-    }
+    nextFood();
   }, 350);
+}
+
+async function loadRecommendations(userId) {
+  try {
+    const response = await fetch(
+      `${API_BASE_URL}/recommendations/personal/${userId}`
+    );
+
+    const data = await response.json();
+
+    console.log("TF-IDF Recommendations:", data);
+
+    if (data.recommendations) {
+      foods = data.recommendations;
+    }
+  } catch (err) {
+    console.error(err);
+  }
 }
 
 function showSwipeProgress(count, food) {
@@ -538,33 +985,79 @@ function showSwipeProgress(count, food) {
 }
 
 async function triggerFoodMatch(food) {
-  const foodName = food?.food_name || "makanan ini";
-  const foodImage = food?.image || food?.img || "https://picsum.photos/400/400";
-
-  // Mulai scraping SEKARANG (paralel dengan animasi card)
-  const scrapingPromise = fetch(`${API_BASE_URL}/match/${encodeURIComponent(foodName)}`)
-    .then(r => r.json())
-    .catch(() => null);
-
-  // Tampilkan animasi card 15 detik — scraping sudah jalan di background
-  await showFoodMatchCard(foodName, foodImage);
-
-  // Animasi selesai → tampilkan scraping loader
-  showScrapingLoader(foodName);
-
+  const foodName =
+    food?.food_name || "makanan ini";
+  const foodImage =
+    food?.image ||
+    food?.img ||
+    "https://picsum.photos/400/400";
+  const currentUser =
+    JSON.parse(
+      localStorage.getItem(
+        "fooderUser"
+      )
+    );
+  const userId =
+    currentUser?.id;
+  if (!userId) {
+    console.error(
+      "User ID tidak ditemukan"
+    );
+    return;
+  }
+  // Mulai scraping SEKARANG
+  const scrapingPromise =
+    fetch(
+      `${API_BASE_URL}/match/${encodeURIComponent(foodName)}/${userId}`
+    )
+      .then(r => r.json())
+      .catch(() => null);
+  // Tampilkan animasi match
+  await showFoodMatchCard(
+    foodName,
+    foodImage
+  );
+  // Loader scraping
+  showScrapingLoader(
+    foodName
+  );
   try {
-    const data = await scrapingPromise;
-    window._matchedFood = foodName;
-    window._matchedRestaurants = (data && data.restaurants) ? data.restaurants : [];
+    const data =
+      await scrapingPromise;
+
+    console.log(
+      "MATCH RESPONSE:",
+      data
+    );
+    window._matchedFood =
+      foodName;
+    window._matchedRestaurants =
+      (
+        data &&
+        data.restaurants
+      )
+        ? data.restaurants
+        : [];
 
     await waitForLoaderFinish();
     hideScrapingLoader();
-    showRestaurantResultPage(foodName, window._matchedRestaurants);
-  } catch (error) {
-    console.error("Match/scraping failed:", error);
+    showRestaurantResultPage(
+      foodName,
+      window._matchedRestaurants
+    );
+  }
+  catch (error) {
+    console.error(
+      "Match/scraping failed:",
+      error
+    );
     await waitForLoaderFinish();
     hideScrapingLoader();
-    showRestaurantResultPage(foodName, []);
+    showRestaurantResultPage(
+      foodName,
+      []
+    );
+
   }
 }
 
@@ -894,7 +1387,8 @@ function updateDetailTags(tags) {
 
   tags.forEach((tag) => {
     const span = document.createElement("span");
-    span.textContent = tag;
+    span.textContent =
+      toTitleCase(tag);
     tagContainer.appendChild(span);
   });
 }
@@ -921,12 +1415,87 @@ function updateScore(score) {
 
 /* ACTIVE CHIP */
 
-const categoryButtons = document.querySelectorAll(".category");
+const categoryButtons =
+  document.querySelectorAll(
+    "#searchPage .chips span"
+  );
+
+const searchInput =
+  document.getElementById(
+    "searchInput"
+  );
+
+if (searchInput) {
+
+  searchInput.addEventListener(
+    "input",
+    () => {
+
+      performSearch();
+
+    }
+  );
+
+}
+
+async function performSearch() {
+
+  const keyword =
+    document
+      .getElementById("searchInput")
+      ?.value
+      ?.trim() || "";
+
+  try {
+
+    const response =
+      await fetch(
+        `${API_BASE_URL}/foods/search?keyword=${encodeURIComponent(keyword)}&cuisine=${encodeURIComponent(currentCuisine)}`
+      );
+
+    const foods =
+      await response.json();
+
+    renderSearchFoods(
+      foods
+    );
+
+  }
+  catch(err){
+
+    console.error(err);
+
+  }
+
+}
 
 categoryButtons.forEach((button) => {
   button.addEventListener("click", () => {
-    categoryButtons.forEach((btn) => btn.classList.remove("active"));
+    categoryButtons.forEach((btn) =>
+      btn.classList.remove("active")
+    );
     button.classList.add("active");
+    currentCuisine =
+      button.dataset.cuisine || "All";
+    const keyword =
+      document.getElementById(
+        "searchInput"
+      )?.value?.trim() || "";
+    console.log(
+      "CURRENT CUISINE:",
+      currentCuisine
+    );
+    if (keyword === "") {
+      if (currentCuisine === "All") {
+        loadSearchFoods();
+      } else {
+        loadFoodsByCuisine(
+          currentCuisine
+        );
+      }
+    } else {
+      performSearch();
+    }
   });
 });
 
@@ -958,7 +1527,7 @@ multiSelectChips.forEach((chip) => {
 
 /* SEARCH FILTER */
 
-const searchInput = document.querySelector(".search-box input");
+// const searchInput = document.querySelector(".search-box input");
 const searchCards = document.querySelectorAll("#searchResultList .list-card");
 const searchResultCount = document.getElementById("searchResultCount");
 
@@ -987,36 +1556,19 @@ function getActiveFilterText(title) {
 function applySearchFilters() {
   const keyword = searchInput?.value.toLowerCase() || "";
   const cuisine = getActiveFilterText("cuisine");
-  const taste = getActiveFilterText("taste");
-  const dietary = getActiveFilterText("dietary");
-
-  const maxDistance = Number(distanceRange?.value || 10);
-  const minRating = Number(ratingRange?.value || 1);
 
   let visibleCount = 0;
 
   searchCards.forEach((card) => {
     const text = card.textContent.toLowerCase();
     const cardCuisine = card.dataset.cuisine || "";
-    const cardTaste = card.dataset.taste || "";
-    const cardDietary = card.dataset.dietary || "";
-    const cardDistance = Number(card.dataset.distance || 999);
-    const cardRating = Number(card.dataset.rating || 0);
 
     const matchKeyword = text.includes(keyword);
     const matchCuisine = cuisine === "all" || cardCuisine.includes(cuisine);
-    const matchTaste = cardTaste.includes(taste);
-    const matchDietary = cardDietary.includes(dietary);
-    const matchDistance = cardDistance <= maxDistance;
-    const matchRating = cardRating >= minRating;
 
     const isVisible =
       matchKeyword &&
-      matchCuisine &&
-      matchTaste &&
-      matchDietary &&
-      matchDistance &&
-      matchRating;
+      matchCuisine;
 
     card.style.display = isVisible ? "flex" : "none";
 
@@ -1046,19 +1598,22 @@ if (ratingRange && ratingValue) {
   });
 }
 
-document.querySelectorAll("#searchPage .chips span").forEach((chip) => {
-  chip.addEventListener("click", () => {
-    const parent = chip.parentElement;
+document.querySelectorAll(".daily-chips span")
+  .forEach(chip => {
 
-    parent.querySelectorAll("span").forEach((item) => {
-      item.classList.remove("active");
+    chip.addEventListener("click", () => {
+
+      const group = chip.closest(".daily-group");
+
+      group.querySelectorAll("span")
+        .forEach(item => {
+          item.classList.remove("active");
+        });
+
+      chip.classList.add("active");
     });
 
-    chip.classList.add("active");
-    applySearchFilters();
   });
-});
-
 /* SAVE BUTTON */
 
 const saveButtons = document.querySelectorAll(
@@ -1150,15 +1705,15 @@ function loadSavedProfile() {
 /* INIT */
 
 document.body.classList.add("auth-active");
-fetchFoods();
+// fetchFoods();
 
-// Load profil dari localStorage (hasil login/register sebelumnya)
-const _savedUser = localStorage.getItem("fooderUser");
-if (_savedUser) {
-  try { renderUserProfile(JSON.parse(_savedUser)); } catch(e) {}
-}
+// Hapus sesi sebelumnya agar user selalu wajib login ulang setiap aplikasi dibuka
+localStorage.removeItem("fooderUser");
 
 loadSavedProfile();
+
+// Inisialisasi halaman awal — selalu mulai dari halaman login
+showPage("loginPage");
 
 /* ═══════════════════════════════════════════════════════════════════
    SENTIMENT ANALYSIS — FooDer (Perbaikan & Integrasi)
@@ -1367,31 +1922,106 @@ window.openFoodDetail = function(name, restaurant, image, rating, distance, insi
   loadSentimentForRestaurant(id, name);
 };
 
+function toTitleCase(text) {
+  if (!text) return "";
+  return text
+    .toLowerCase()
+    .split(" ")
+    .map(word =>
+      word.charAt(0).toUpperCase() +
+      word.slice(1)
+    )
+    .join(" ");
+}
+
 // ── Perbaiki updateFoodCard agar meneruskan restaurantId ke detail ────────────
 const _origUpdateFoodCard = window.updateFoodCard;
 // Patch tombol detail di dalam updateFoodCard agar menyertakan restaurantId
 const _origUpdateFC2 = updateFoodCard;
 function updateFoodCard() {
+    console.log(
+      "UPDATE CARD",
+      foodIndex,
+      foods[foodIndex]
+    );
   if (!foodCard || foods.length === 0) return;
   const food = foods[foodIndex];
+  const imgElement =
+    document.querySelector(".food-card img");
+  imgElement.src =
+    food.img_url ||
+    "https://picsum.photos/500/700";
+  document.querySelector(".food-card h2").textContent =
+    toTitleCase(
+      food.food_name || "Unknown Food"
+    );
+  // kanan atas = origin country
+  document.querySelector(".price-tag").textContent =
+    food.origin_country || "Food";
+  // badge kiri bawah
+  const scoreBadge =
+    document.querySelector(".score-pill");
+  console.log("CATEGORY =", food.category);
+  console.log("TASTE_MOOD =", food.taste_mood);
+  console.log("FULL FOOD =", food);
+  console.log(
+    "CATEGORY TITLE =",
+    toTitleCase(food.category)
+  );
+  if (scoreBadge) {
+    scoreBadge.textContent =
+      `${toTitleCase(food.category || "")} • ${toTitleCase(food.taste_mood || "")}`;
+  }
+  // best match
+  const bestMatch =
+    document.querySelector(".best-match");
+  if (bestMatch) {
+    const finalScore =
+      parseFloat(food.final_score || 0);
+    console.log(
+      "BEST MATCH CHECK:",
+      food.food_name,
+      finalScore
+    );
+    if (finalScore >= 0.45) {
+      bestMatch.style.visibility  = "visible";
+    } else {
+      bestMatch.style.visibility  = "hidden";
+    }
+  }
 
-  document.querySelector(".food-card img").src = food.img || food.image;
-  document.querySelector(".food-card h2").textContent = food.food_name;
-  document.querySelector(".price-tag").textContent = food.cuisine;
+  const tagBox =
+    document.querySelector(".food-tags");
 
-  const tagBox = document.querySelector(".food-tags");
-  tagBox.innerHTML = "";
-  food.tags.forEach((tag) => {
-    const span = document.createElement("span");
-    span.textContent = tag;
-    tagBox.appendChild(span);
-  });
-
+  if (tagBox) {
+    tagBox.innerHTML = "";
+    const tags = [];
+    if (food.category)
+      tags.push(food.category);
+    if (food.taste_mood)
+      tags.push(food.taste_mood);
+    tags.forEach(tag => {
+      const span =
+        document.createElement("span");
+      span.textContent = toTitleCase(tag);
+      tagBox.appendChild(span);
+    });
+  }
+  console.log("FOOD NAME:", food.food_name);
+  console.log("FINAL SCORE:", food.final_score);
+  console.log("TYPE:", typeof food.final_score);
   foodCard.style.transition = "none";
-  foodCard.style.transform = "translateX(0) rotate(0deg) scale(0.95)";
+  foodCard.style.transform =
+    "translateX(0) rotate(0deg) scale(0.95)";
+
   setTimeout(() => {
-    foodCard.style.transition = "0.25s ease";
-    foodCard.style.transform = "translateX(0) rotate(0deg) scale(1)";
+
+    foodCard.style.transition =
+      "0.25s ease";
+
+    foodCard.style.transform =
+      "translateX(0) rotate(0deg) scale(1)";
+
   }, 50);
 }
 
@@ -1605,122 +2235,292 @@ const DUMMY_SENTIMENT = [
   { positive: 82, negative: 18, keywords: ["juara", "mantap", "harga pas"] },
 ];
 
-function showRestaurantResultPage(foodName, restaurants) {
+async function showRestaurantResultPage(
+  foodName,
+  restaurants
+) {
   injectLoaderAndResultCSS();
 
-  const fallback = [
-    { restaurant_name: "Warung Makan Sederhana", food_name: foodName, rating: 4.7, count_rating: 842, city: "Bandung", address: "Jl. Braga No.12, Bandung" },
-    { restaurant_name: "Resto Nusantara", food_name: foodName, rating: 4.5, count_rating: 1203, city: "Bandung", address: "Jl. Dago No.88, Bandung" },
-    { restaurant_name: "Kedai Rasa Asli", food_name: foodName, rating: 4.3, count_rating: 567, city: "Bandung", address: "Jl. Cihampelas No.45, Bandung" },
-  ];
+  const list = restaurants || [];
 
-  const list = restaurants && restaurants.length > 0 ? restaurants : fallback;
+  const nearbyContent =
+    document.getElementById(
+      "nearbyContent"
+    );
 
-  const nearbyContent = document.getElementById("nearbyContent");
   if (!nearbyContent) return;
 
-  nearbyContent.innerHTML = `
-    <h2 class="rr-nearby-title">${foodName}</h2>
-    <div class="trending-badge" style="margin-bottom:16px;">🎉 ${list.length} Restoran Ditemukan</div>
+  if (list.length === 0) {
 
-    <div class="rr-popup-list">
-      ${list.map((r, i) => {
-        const img = r.image_url || RESTAURANT_DUMMY_IMAGES[i % RESTAURANT_DUMMY_IMAGES.length];
-        const sentiment = DUMMY_SENTIMENT[i % DUMMY_SENTIMENT.length];
-        const rname = (r.restaurant_name || foodName).replace(/'/g, "\\'");
-        const rnameSafe = r.restaurant_name || "Nama Restoran";
-        return `
+    nearbyContent.innerHTML = `
+      <div class="empty-result">
+
+        <div class="empty-result-icon">
+          🍽️
+        </div>
+
+        <h2>
+          Maaf, restoran untuk
+          "${foodName}"
+          belum ditemukan
+        </h2>
+
+        <p>
+          Coba pilih makanan lain,
+          lakukan swipe lagi untuk
+          mendapatkan match baru,
+          atau gunakan nama makanan
+          yang lebih umum agar hasil
+          pencarian restoran lebih banyak.
+        </p>
+
+      </div>
+    `;
+
+    showPage("nearbyPage");
+    return;
+  }
+
+  const cards = await Promise.all(
+
+    list.map(async (r, i) => {
+
+      const img =
+        r.img_url ||
+        r.image_url ||
+        RESTAURANT_DUMMY_IMAGES[
+          i %
+          RESTAURANT_DUMMY_IMAGES.length
+        ];
+
+      const sentiment =
+        await getRestaurantInsight(
+          r.restaurant_id
+        );
+      
+      const safeSummary =
+        sanitizeForOnclick(
+          sentiment.human_readable_summary
+        );
+
+      const safeAutoSummary =
+        sanitizeForOnclick(
+          sentiment.auto_summary
+        );
+      
+      console.log(
+        "Sentiment:",
+        r.restaurant_name,
+        sentiment
+      );
+
+      const rname =
+        (
+          r.restaurant_name ||
+          foodName
+        ).replace(/'/g, "\\'");
+
+      const rnameSafe =
+        r.restaurant_name ||
+        "Nama Restoran";
+
+      return `
         <div class="rr-card">
+
           <div class="rr-card-img-wrap">
-            <div class="rr-rank">${i + 1}</div>
-            <img class="rr-card-img" src="${img}" alt="${rnameSafe}" onerror="this.src='https://picsum.photos/120/120'">
+
+            <div class="rr-rank">
+              ${i + 1}
+            </div>
+
+            <img
+              class="rr-card-img"
+              src="${img}"
+              alt="${rnameSafe}"
+              onerror="this.src='https://picsum.photos/120/120'"
+            >
+
           </div>
 
           <div class="rr-card-body">
+
             <div class="rr-card-top">
+
               <div>
-                <div class="rr-card-name">${rnameSafe}</div>
-                <div class="rr-card-food">🍽️ ${r.food_name || foodName}</div>
+
+                <div class="rr-card-name">
+                  ${rnameSafe}
+                </div>
+
+                <div class="rr-card-food">
+                  🍽️ ${r.food_name || foodName}
+                </div>
+
               </div>
-              <div class="rr-card-rating">⭐ ${r.rating || "–"}</div>
+
+              <div class="rr-card-rating">
+                ⭐ ${r.rating || "-"}
+              </div>
+
             </div>
 
             <div class="rr-card-addr">
+
               📍 ${r.address || r.city || "Lokasi tidak tersedia"}
-              ${r.count_rating ? `<span class="rr-review-count">${Number(r.count_rating).toLocaleString()} ulasan</span>` : ""}
+
+              ${
+                r.count_rating
+                  ? `
+                  <span class="rr-review-count">
+                    ${Number(
+                      r.count_rating
+                    ).toLocaleString()}
+                    ulasan
+                  </span>
+                `
+                  : ""
+              }
+
             </div>
 
             <div class="rr-sentiment-row">
+
               <div class="rr-sentiment-bar-wrap">
+
                 <div class="rr-sentiment-bar">
-                  <div class="rr-sentiment-pos" style="width:${sentiment.positive}%"></div>
-                  <div class="rr-sentiment-neg" style="width:${sentiment.negative}%"></div>
+
+                  <div
+                    class="rr-sentiment-pos"
+                    style="width:${sentiment.positive_pct || 0}%"
+                  ></div>
+
+                  <div
+                    class="rr-sentiment-neg"
+                    style="width:${sentiment.negative_pct || 0}%"
+                  ></div>
+
                 </div>
+
                 <div class="rr-sentiment-labels">
-                  <span class="rr-sent-pos">😊 ${sentiment.positive}% Positif</span>
-                  <span class="rr-sent-neg">😞 ${sentiment.negative}% Negatif</span>
+
+                  <span class="rr-sent-pos">
+                    😊 ${sentiment.positive_pct || 0}% Positif
+                  </span>
+
+                  <span class="rr-sent-neg">
+                    😞 ${sentiment.negative_pct || 0}% Negatif
+                  </span>
+
                 </div>
+
               </div>
+
             </div>
 
             <div class="rr-card-actions">
-              <button class="rr-btn rr-btn-primary" onclick="openGoogleMaps('${encodeURIComponent(r.restaurant_name || foodName)}')">
+
+              <button
+                class="rr-btn rr-btn-primary"
+                onclick="openGoogleMaps(
+                  '${encodeURIComponent(
+                    r.restaurant_name || foodName
+                  )}'
+                )"
+              >
                 🗺️ Buka Maps
               </button>
-              <button class="rr-btn rr-btn-secondary" onclick="shareRestaurant('${rname}')">
+
+              <button
+                class="rr-btn rr-btn-secondary"
+                onclick="shareRestaurant(
+                  '${rname}'
+                )"
+              >
                 📤 Bagikan
               </button>
-              <button class="rr-btn rr-btn-detail" onclick="openRestaurantDetail(${i}, '${rname}', '${img}', ${r.rating || 0}, ${r.count_rating || 0}, '${(r.address || r.city || '').replace(/'/g, "\\'")}', ${sentiment.positive}, ${sentiment.negative}, '${sentiment.keywords.join(',')}')">
+
+              <button
+                class="rr-btn rr-btn-detail"
+                onclick="openRestaurantDetail(
+                  ${i},
+                  '${rname}',
+                  '${img}',
+                  ${r.rating || 0},
+                  ${r.count_rating || 0},
+                  '${(r.address || "").replace(/'/g, "\\'")}',
+                  ${sentiment.positive_pct || 0},
+                  ${sentiment.negative_pct || 0},
+                  '${(
+                    sentiment.dominant_positive_keywords || []
+                  ).join(",")}',
+                  '${safeSummary}',
+                  '${safeAutoSummary}'
+                )"
+              >
                 🔍 Selengkapnya
               </button>
+
             </div>
+
           </div>
+
         </div>
-      `}).join("")}
+      `;
+    })
+  );
+
+  nearbyContent.innerHTML = `
+    <h2 class="rr-nearby-title">
+      ${foodName}
+    </h2>
+
+    <div
+      class="trending-badge"
+      style="margin-bottom:16px;"
+    >
+      🎉 ${list.length} Restoran Ditemukan
+    </div>
+
+    <div class="rr-popup-list">
+      ${cards.join("")}
     </div>
   `;
 
-  // Navigasi ke halaman nearbyPage
   showPage("nearbyPage");
 }
 
-function openRestaurantDetail(idx, name, img, rating, countRating, address, posPercent, negPercent, keywordsStr) {
+function sanitizeForOnclick(text) {
+  return String(text || "")
+    .replace(/\\/g, "\\\\")
+    .replace(/'/g, "\\'")
+    .replace(/"/g, "&quot;")
+    .replace(/\r?\n/g, " ")
+    .replace(/\t/g, " ");
+}
+
+function openRestaurantDetail(idx, name, img, rating, countRating, address, posPercent, negPercent, keywordsStr, summary, autoSummary) {
   const existing = document.getElementById("rrDetailModal");
   if (existing) existing.remove();
-
   const keywords = (keywordsStr || "").split(",").filter(Boolean);
   const neutralPercent = Math.max(0, 100 - posPercent - negPercent);
-
   // Tentukan deskripsi & tags berdasarkan nama makanan (sama seperti openFoodDetail)
   const title = (name || "").toLowerCase();
-  let desc = "Chewy rice cakes simmered in a sweet-and-spicy gochujang sauce with fish cake and scallions.";
-  let tags = ["Spicy", "Savory", "Halal-friendly"];
-  let score = 67;
-
-  if (title.includes("burger")) {
-    desc = "A juicy double smash burger with crispy edges, melted cheese, fresh vegetables, and a soft toasted bun.";
-    tags = ["Cheesy", "Beef", "Crispy"]; score = 74;
-  } else if (title.includes("ramen")) {
-    desc = "Warm Japanese ramen served with rich broth, noodles, egg, and savory toppings.";
-    tags = ["Savory", "Comfort", "Japanese"]; score = 81;
-  } else if (title.includes("sushi") || title.includes("salmon")) {
-    desc = "Fresh salmon sushi platter served with rice, seaweed, soy sauce, and wasabi.";
-    tags = ["Fresh", "Sushi", "Salmon"]; score = 78;
-  } else if (title.includes("nasi")) {
-    desc = "Classic Indonesian fried rice with smoky aroma, savory seasoning, egg, and local spices.";
-    tags = ["Local", "Savory", "Affordable"]; score = 86;
-  }
-
+  const desc =
+    summary ||
+    "Belum ada ringkasan review.";
+  const tags =
+    keywords.length > 0
+      ? keywords.slice(0, 6)
+      : ["Popular", "Recommended"];
+  let score = posPercent;
   // Gunakan skor sentimen jika tersedia
   const displayScore = posPercent > 0 ? posPercent : score;
-
   const modal = document.createElement("div");
   modal.id = "rrDetailModal";
   modal.innerHTML = `
     <div class="rrd-overlay" onclick="closeRestaurantDetail()">
       <div class="rrd-box" onclick="event.stopPropagation()">
         <button class="rrd-close" onclick="closeRestaurantDetail()">×</button>
-
         <!-- HERO (mirip detail-hero) -->
         <div class="rrd-hero">
           <img class="rrd-img" src="${img}" alt="${name}" onerror="this.src='https://picsum.photos/400/200'">
@@ -1730,7 +2530,6 @@ function openRestaurantDetail(idx, name, img, rating, countRating, address, posP
             <h2 class="rrd-name">${name}</h2>
           </div>
         </div>
-
         <!-- STATS (mirip detail-stats) -->
         <div class="rrd-body">
           <div class="rrd-stats-row">
@@ -1749,37 +2548,52 @@ function openRestaurantDetail(idx, name, img, rating, countRating, address, posP
               <span>11:00–22:00</span>
             </div>
           </div>
+          <!-- REVIEW SUMMARY -->
+          <h3 style="font-size:16px;font-weight:800;color:#2b211b;margin:0 0 8px;">
+            Review Summary
+          </h3>
 
-          <!-- ABOUT THIS DISH -->
-          <h3 style="font-size:16px;font-weight:800;color:#2b211b;margin:0 0 8px;">About this dish</h3>
-          <p style="font-size:14px;color:#7b6f67;line-height:1.5;margin-bottom:14px;">${desc}</p>
+          <p
+            style="
+              font-size:14px;
+              color:#7b6f67;
+              line-height:1.6;
+              margin-bottom:10px;
+            "
+          >
+            ${summary || "Belum ada ringkasan review."}
+          </p>
 
-          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px;">
-            ${tags.map(t => `<span style="background:#fff2e5;color:#ff844d;padding:7px 14px;border-radius:999px;font-size:12px;font-weight:700;">${t}</span>`).join("")}
-          </div>
+          <p
+            style="
+              font-size:13px;
+              color:#9a8f87;
+              line-height:1.6;
+              font-style:italic;
+              margin-bottom:14px;
+            "
+          >
+            ${autoSummary || ""}
+          </p>
 
           <!-- AI REVIEW SUMMARY -->
           <div class="rrd-section" style="background:white;border-radius:20px;padding:16px;box-shadow:0 8px 24px rgba(0,0,0,.05);">
             <h3 class="rrd-section-title">✨ AI Review Summary</h3>
-
             <div class="rrd-sent-labels">
               <span class="rrd-label-pos">Positive ${posPercent}%</span>
               <span style="color:#b0a49c;font-size:13px;font-weight:700;">Neutral ${neutralPercent}%</span>
               <span class="rrd-label-neg">Negative ${negPercent}%</span>
             </div>
-
             <div class="rrd-sent-bar" style="margin:10px 0;">
               <div class="rrd-sent-pos-fill" style="width:${posPercent}%"><span>${posPercent}%</span></div>
               <div style="height:100%;background:#FFC107;width:${neutralPercent}%;display:flex;align-items:center;justify-content:center;color:#2b211b;font-size:11px;font-weight:800;">${neutralPercent > 5 ? neutralPercent + "%" : ""}</div>
               <div class="rrd-sent-neg-fill" style="width:${negPercent}%"><span>${negPercent > 5 ? negPercent + "%" : ""}</span></div>
             </div>
-
             <p style="font-size:11px;color:#b0a49c;font-weight:700;letter-spacing:.5px;margin:12px 0 8px;">MOST MENTIONED</p>
             <div class="rrd-keywords">
               ${keywords.map(k => `<span class="rrd-keyword">${k}</span>`).join("")}
             </div>
           </div>
-
           <!-- RECOMMENDATION SCORE -->
           <div class="rrd-section" style="background:white;border-radius:20px;padding:16px;box-shadow:0 8px 24px rgba(0,0,0,.05);margin-top:14px;text-align:center;">
             <h3 class="rrd-section-title" style="text-align:left;">Recommendation score</h3>
@@ -1788,7 +2602,6 @@ function openRestaurantDetail(idx, name, img, rating, countRating, address, posP
             </h4>
             <p style="font-size:13px;color:#b0a49c;">Based on your swipes, taste profile, and location.</p>
           </div>
-
           <!-- ACTIONS -->
           <div class="rrd-actions" style="margin-top:20px;">
             <button class="rr-btn rr-btn-secondary" onclick="openGoogleMaps('${encodeURIComponent(name)}'); closeRestaurantDetail();">
@@ -1802,8 +2615,36 @@ function openRestaurantDetail(idx, name, img, rating, countRating, address, posP
       </div>
     </div>
   `;
-
   document.body.appendChild(modal);
+}
+
+async function getRestaurantInsight(
+  restaurantId
+) {
+  try {
+
+    const response = await fetch(
+      `${API_BASE_URL}/review/insight/${restaurantId}`
+    );
+
+    return await response.json();
+
+  } catch (error) {
+
+    console.error(
+      "Insight Error:",
+      error
+    );
+
+    return {
+      positive_pct: 0,
+      negative_pct: 0,
+      neutral_pct: 0,
+      dominant_positive_keywords: [],
+      human_readable_summary: "",
+      auto_summary: ""
+    };
+  }
 }
 
 function closeRestaurantDetail() {

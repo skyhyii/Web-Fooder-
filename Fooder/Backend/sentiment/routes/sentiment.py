@@ -152,8 +152,8 @@ def get_restaurant_sentiment_from_db(restaurant_id: int):
         # jika database belum siap
         import sys, os
         sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", ".."))
-        from database.db import SessionLocal
-        from database.models import Review
+        from Fooder.backend.database.db import SessionLocal
+        from Fooder.backend.database.models import Review
 
         session = SessionLocal()
         reviews_db = session.query(Review).filter(

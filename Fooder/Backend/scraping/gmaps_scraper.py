@@ -9,6 +9,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import NoSuchElementException, TimeoutException
 from webdriver_manager.chrome import ChromeDriverManager
+from urllib.parse import quote_plus
 
 # ─────────────────────────────────────────────────────────────────────────────
 BASE_URL = "http://localhost:8000"
@@ -18,12 +19,74 @@ BASE_URL = "http://localhost:8000"
 #  DRIVER
 # ══════════════════════════════════════════════════════════════════════════════
 
-def get_driver() -> webdriver.Chrome:
+def get_driver():
+
     options = webdriver.ChromeOptions()
-    driver  = webdriver.Chrome(
-        service=Service(ChromeDriverManager().install()),
-        options=options,
+
+    options.add_argument("--headless=new")
+    options.add_argument("--disable-gpu")
+    options.add_argument("--no-sandbox")
+    options.add_argument("--disable-dev-shm-usage")
+
+    options.add_argument(
+        "--window-size=1920,1080"
     )
+
+    options.add_argument(
+        "--disable-blink-features=AutomationControlled"
+    )
+
+    # Tambahkan ini
+    options.add_argument(
+        "--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36"
+    )
+
+    options.add_experimental_option(
+        "excludeSwitches",
+        ["enable-automation"]
+    )
+
+    options.add_experimental_option(
+        "useAutomationExtension",
+        False
+    )
+
+    driver = webdriver.Chrome(
+        service=Service(
+            ChromeDriverManager().install()
+        ),
+        options=options
+    )
+
+    driver.execute_script("""
+        Object.defineProperty(
+            navigator,
+            'webdriver',
+            {
+                get: () => undefined
+            }
+        )
+    """)
+
+    # Tambahkan ini juga
+    driver.execute_cdp_cmd(
+        "Network.setUserAgentOverride",
+        {
+            "userAgent":
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36"
+        }
+    )
+
+    # Debug
+    print("=" * 50)
+    print("USER AGENT")
+    print(
+        driver.execute_script(
+            "return navigator.userAgent"
+        )
+    )
+    print("=" * 50)
+
     return driver
 
 
@@ -174,18 +237,31 @@ def scrape_reviews(driver: webdriver.Chrome, max_reviews: int = 10) -> list[dict
         wait = WebDriverWait(driver, 15)
 
         # ── LANGKAH 1: Klik tab Ulasan / Review ──────────────────────────────
+        print("\n===== DEBUG TABS =====")
+        tabs = driver.find_elements(
+            By.XPATH,
+            "//*[@role='tab']"
+        )
+        print("TOTAL TABS:", len(tabs))
+        for t in tabs:
+            try:
+                print("TAB:", t.text)
+            except:
+                pass
+        print("======================\n")
         review_tab = None
+        
         for label in ["Ulasan", "Review"]:
             try:
                 review_tab = wait.until(
                     EC.element_to_be_clickable(
-                        (By.XPATH, f'//button[@role="tab" and contains(., "{label}")]')
+                        (By.XPATH, f'//*[@role="tab" and contains(., "{label}")]')
                     )
                 )
                 break
             except TimeoutException:
                 continue
-
+        
         if review_tab is None:
             print("    [!] Tab Ulasan tidak ditemukan, skip.")
             return reviews
@@ -314,10 +390,20 @@ def search_and_save(
     wait   = WebDriverWait(driver, 15)
 
     try:
-        print(f"\n[SCRAPER] Mencari: '{food_name}' …")
-        driver.get(f"https://www.google.com/maps/search/{food_name}")
+        search_query = food_name
+        if city:
+            search_query += f" {city}"
+        encoded_query = quote_plus(
+            search_query
+        )
+        print(
+            f"\n[SCRAPER] Mencari: '{search_query}' …"
+        )
+        driver.get(
+            f"https://www.google.com/maps/search/{encoded_query}"
+        )
+        
         time.sleep(4)
-
         cards = driver.find_elements(By.CSS_SELECTOR, "div.Nv2PK")
         count = min(len(cards), max_results)
         print(f"[SCRAPER] Ditemukan {len(cards)} kartu, akan diproses {count}.\n")
@@ -333,7 +419,7 @@ def search_and_save(
 
         for idx, link in enumerate(links):
             print(f"[{idx+1}/{len(links)}] Membuka halaman detail…")
-
+            
             detail  = {}
             reviews = []
 

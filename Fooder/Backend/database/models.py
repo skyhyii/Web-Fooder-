@@ -23,6 +23,7 @@ class User(Base):
     gender = Column(String)
     like = Column(Integer)
     swipe = Column(Integer)
+    match = Column(Integer)
 
 class Food(Base):
     __tablename__ = "foods"

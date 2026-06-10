@@ -129,8 +129,8 @@ def get_review_insight_from_db(restaurant_id: int, restaurant_name: str = "Resto
     try:
         import sys, os
         sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", ".."))
-        from database.db import SessionLocal
-        from database.models import Review
+        from Fooder.backend.database.db import SessionLocal
+        from Fooder.backend.database.models import Review
 
         session = SessionLocal()
         reviews_db = session.query(Review).filter(

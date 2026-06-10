@@ -30,7 +30,8 @@ def get_users():
             "phone": item.phone,
             "gender": item.gender,
             "like": item.like,
-            "swipe": item.swipe
+            "swipe": item.swipe,
+            "match": item.match
         })
 
     session.close()
