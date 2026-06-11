@@ -123,38 +123,161 @@ function renderSearchFoods(
 
   list.innerHTML =
     foods.map(food => `
-
-      <div class="list-card">
-
+      <div class="list-card" onclick="confirmRestaurantSearch('${food.food_name}','${food.category}')">
         <img src="${
           food.img_url
         }">
-
         <div>
-
           <h4>
             ${toTitleCase(
               food.food_name
             )}
           </h4>
-
           <p>
             ${toTitleCase(
               food.category
             )}
           </p>
-
           <small>
             ${
               food.origin_country
             }
           </small>
-
         </div>
-
       </div>
-
     `).join("");
+}
+
+function confirmRestaurantSearch(
+  foodName
+){
+
+  const existing =
+    document.getElementById(
+      "foodSearchModal"
+    );
+
+  if(existing){
+    existing.remove();
+  }
+
+  const modal =
+    document.createElement("div");
+
+  modal.id =
+    "foodSearchModal";
+
+  modal.innerHTML = `
+    <div class="rrd-overlay">
+
+      <div
+        class="rrd-box"
+        style="
+          max-width:350px;
+          padding:24px;
+          text-align:center;
+        "
+      >
+
+        <h3>
+          🍽️ Cari Restoran
+        </h3>
+
+        <p>
+          Mau dicarikan restoran yang cocok
+          berdasarkan makanan
+          <b>${foodName}</b>?
+        </p>
+
+        <div
+          style="
+            display:flex;
+            gap:10px;
+            margin-top:20px;
+          "
+        >
+
+          <button
+            class="rr-btn rr-btn-secondary"
+            style="flex:1"
+            onclick="
+              document
+                .getElementById(
+                  'foodSearchModal'
+                )
+                .remove()
+            "
+          >
+            Tidak
+          </button>
+
+          <button
+            class="rr-btn rr-btn-primary"
+            style="flex:1"
+            onclick="
+              startRestaurantSearch(
+                '${foodName.replace(/'/g, "\\'")}'
+              )
+            "
+          >
+            Ya
+          </button>
+        </div>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(
+    modal
+  );
+}
+async function startRestaurantSearch(
+  foodName
+){
+  document
+    .getElementById(
+      "foodSearchModal"
+    )
+    ?.remove();
+  try{
+    const user =
+      JSON.parse(
+        localStorage.getItem(
+          "fooderUser"
+        )
+      );
+    if(!user){
+      alert(
+        "Silakan login terlebih dahulu."
+      );
+      return;
+    }
+    showLoader(
+      "Mencari restoran..."
+    );
+    const response =
+      await fetch(
+        `${API_BASE_URL}/match/${encodeURIComponent(foodName)}/${user.id}`
+      );
+    const data =
+      await response.json();
+    hideLoader();
+    await showRestaurantResultPage(
+      foodName,
+      data.restaurants
+    );
+    showPage(
+      "nearbyPage"
+    );
+  }
+  catch(error){
+    hideLoader();
+    console.error(
+      error
+    );
+    alert(
+      "Gagal mencari restoran."
+    );
+  }
 }
 
 document.addEventListener(
