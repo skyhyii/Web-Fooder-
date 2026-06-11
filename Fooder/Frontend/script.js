@@ -264,48 +264,67 @@ function confirmRestaurantSearch(
 async function startRestaurantSearch(
   foodName
 ){
+
   document
-    .getElementById(
-      "foodSearchModal"
-    )
+    .getElementById("foodSearchModal")
     ?.remove();
-  try{
-    const user =
-      JSON.parse(
-        localStorage.getItem(
-          "fooderUser"
-        )
-      );
-    if(!user){
-      alert(
-        "Silakan login terlebih dahulu."
-      );
-      return;
-    }
-    showLoading();
+
+  const currentUser =
+    JSON.parse(
+      localStorage.getItem(
+        "fooderUser"
+      )
+    );
+
+  const userId =
+    currentUser?.id;
+
+  if (!userId) {
+
+    alert(
+      "Silakan login terlebih dahulu."
+    );
+
+    return;
+  }
+
+  // Loader Match
+  showScrapingLoader(
+    foodName
+  );
+
+  try {
+
     const response =
-      await fetch(
-        `${API_BASE_URL}/match/${encodeURIComponent(foodName)}/${user.id}`
+      await apiFetch(
+        `${API_BASE_URL}/match/${encodeURIComponent(foodName)}/${userId}`
       );
+
     const data =
       await response.json();
-    hideLoading();
+
+    hideScrapingLoader();
+
     await showRestaurantResultPage(
       foodName,
       data.restaurants
     );
+
     showPage(
       "nearbyPage"
     );
+
   }
   catch(error){
-    hideLoading();
-    console.error(
-      error
-    );
+
+    hideScrapingLoader();
+
+    console.error(error);
+
     alert(
       "Gagal mencari restoran."
     );
+
   }
 }
 
