@@ -1659,6 +1659,64 @@ body.dark-mode .rr-card {
   background: #241c18;
   color: #f8efe7;
 }
+
+.food-search-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 24px;
+}
+
+.food-search-btn-cancel {
+  flex: 1;
+  border: none;
+  border-radius: 999px;
+  padding: 14px;
+
+  font-size: 15px;
+  font-weight: 700;
+
+  cursor: pointer;
+
+  background: #fff;
+  color: #6f6258;
+
+  box-shadow: 0 4px 12px rgba(0,0,0,.08);
+
+  transition: .2s;
+}
+
+.food-search-btn-cancel:hover {
+  transform: translateY(-2px);
+}
+
+.food-search-btn-confirm {
+  flex: 1;
+  border: none;
+  border-radius: 999px;
+  padding: 14px;
+
+  font-size: 15px;
+  font-weight: 700;
+
+  cursor: pointer;
+
+  color: white;
+
+  background: linear-gradient(
+    135deg,
+    #ff9a44,
+    #ff6b57
+  );
+
+  box-shadow: 0 8px 20px rgba(255,132,77,.35);
+
+  transition: .2s;
+}
+
+.food-search-btn-confirm:hover {
+  transform: translateY(-2px);
+}
+
 /* ── NEARBY EMPTY STATE ─────────────────────────────────────────────── */
 .nearby-empty-state {
   display: flex;

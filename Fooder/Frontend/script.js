@@ -225,16 +225,10 @@ function confirmRestaurantSearch(
           📍 Pencarian akan disesuaikan dengan lokasi dan preferensi kulinermu untuk menemukan pilihan yang paling relevan.
         </p>
 
-        <div
-          style="
-            display:flex;
-            gap:12px;
-            margin-top:26px;
-          "
-        >
+        <div class="food-search-actions">
 
           <button
-            class="rr-btn rr-btn-secondary"
+            class="food-search-btn-cancel"
             style="flex:1"
             onclick="
               document
@@ -246,7 +240,7 @@ function confirmRestaurantSearch(
           </button>
 
           <button
-            class="rr-btn rr-btn-primary"
+            class="food-search-btn-confirm"
             style="flex:1"
             onclick="
               startRestaurantSearch(
