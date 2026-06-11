@@ -151,7 +151,7 @@ function renderSearchFoods(
 function confirmRestaurantSearch(
   foodName
 ){
-
+  console.log("CARD DIKLIK:", foodName);
   const existing =
     document.getElementById(
       "foodSearchModal"
@@ -168,32 +168,68 @@ function confirmRestaurantSearch(
     "foodSearchModal";
 
   modal.innerHTML = `
-    <div class="rrd-overlay">
+    <div class="rr-popup">
 
-      <div
-        class="rrd-box"
-        style="
-          max-width:350px;
-          padding:24px;
-          text-align:center;
-        "
-      >
+      <div class="rr-popup-box">
 
-        <h3>
-          🍽️ Cari Restoran
-        </h3>
+        <button
+          class="rr-popup-close"
+          onclick="
+            document
+              .getElementById('foodSearchModal')
+              .remove()
+          "
+        >
+          ×
+        </button>
 
-        <p>
-          Mau dicarikan restoran yang cocok
-          berdasarkan makanan
-          <b>${foodName}</b>?
+        <h2 class="rr-popup-title">
+          🍽️ Temukan Restoran
+        </h2>
+
+        <p
+          style="
+            margin-top:14px;
+            font-size:18px;
+            line-height:1.6;
+            color:#5f5147;
+          "
+        >
+          Kami akan mencari restoran terbaik yang
+          menyajikan:
+        </p>
+
+        <div
+          style="
+            margin:18px 0;
+            background:#fff;
+            border-radius:18px;
+            padding:14px;
+            font-weight:700;
+            font-size:20px;
+            color:#ff844d;
+            text-align:center;
+            box-shadow:0 4px 14px rgba(0,0,0,.05);
+          "
+        >
+          🍜 ${foodName}
+        </div>
+
+        <p
+          style="
+            font-size:15px;
+            color:#8b7d73;
+            line-height:1.6;
+          "
+        >
+          📍 Pencarian akan disesuaikan dengan lokasi dan preferensi kulinermu untuk menemukan pilihan yang paling relevan.
         </p>
 
         <div
           style="
             display:flex;
-            gap:10px;
-            margin-top:20px;
+            gap:12px;
+            margin-top:26px;
           "
         >
 
@@ -202,13 +238,11 @@ function confirmRestaurantSearch(
             style="flex:1"
             onclick="
               document
-                .getElementById(
-                  'foodSearchModal'
-                )
+                .getElementById('foodSearchModal')
                 .remove()
             "
           >
-            Tidak
+            😊 Nanti Saja
           </button>
 
           <button
@@ -220,10 +254,13 @@ function confirmRestaurantSearch(
               )
             "
           >
-            Ya
+            🔍 Cari Sekarang
           </button>
+
         </div>
+
       </div>
+
     </div>
   `;
   document.body.appendChild(
