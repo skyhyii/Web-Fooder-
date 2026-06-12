@@ -49,92 +49,103 @@ print(
 # ============================================================
 # CELL 2 — CONFIGURATION
 # ============================================================
+import sys
+from pathlib import Path
 
-NOTEBOOK_DIR = Path().resolve()
+BACKEND_DIR = Path(__file__).resolve().parent.parent
 
-DATASET_DIR = (
-    NOTEBOOK_DIR.parent.parent.parent
-    / "Dataset"
-)
-print("NOTEBOOK_DIR :", NOTEBOOK_DIR)
-print("DATASET_DIR :", DATASET_DIR)
-
-PATHS = {
-
-    "raw_recipes":
-        DATASET_DIR
-        / "RAW_recipes.csv",
-
-    "raw_interactions":
-        DATASET_DIR
-        / "RAW_interactions.csv",
-
-    "train_json":
-        DATASET_DIR
-        / "train.json",
-
-    "indo_recipes":
-        DATASET_DIR
-        / "Indonesian_Food_Recipes.csv"
-}
-
-# ------------------------------------------------------------
-# DATASET VERIFICATION
-# ------------------------------------------------------------
-
-print(
-    "Dataset Verification"
-)
-
-missing_files = []
-
-for dataset_name, dataset_path in PATHS.items():
-
-    if dataset_path.exists():
-
-        print(
-            f"FOUND      | {dataset_name}"
-        )
-
-    else:
-
-        print(
-            f"NOT FOUND  | {dataset_name}"
-        )
-
-        missing_files.append(
-            dataset_name
-        )
+if str(BACKEND_DIR) not in sys.path:
+    sys.path.append(str(BACKEND_DIR))
 # ============================================================
-# CELL 3 — LOAD DATASET & AUDIT
+# DATABASE IMPORT
+# ============================================================
+
+from database.db import (
+    SessionLocal
+)
+
+from database.models import (
+    Food
+)
+# ============================================================
+# CELL 3 — LOAD DATABASE & AUDIT
 # ============================================================
 
 print(
-    "Loading datasets...\n"
+    "Loading foods from database...\n"
 )
 
 # ------------------------------------------------------------
-# LOAD DATASETS
+# LOAD FROM DATABASE
 # ------------------------------------------------------------
 
-df_recipes = pd.read_csv(
-    PATHS["raw_recipes"]
+session = SessionLocal()
+
+foods = session.query(Food).all()
+
+food_records = []
+
+for food in foods:
+
+    food_records.append(
+
+        {
+
+            "food_id":
+                food.id,
+
+            "food_name":
+                str(
+                    food.title_cleaned
+                    or ""
+                ),
+
+            "ingredients":
+                str(
+                    food.ingredients_cleaned
+                    or ""
+                ),
+
+            "category":
+                str(
+                    food.category
+                    or ""
+                ),
+
+            "description":
+                str(
+                    food.description
+                    or ""
+                ),
+
+            "origin_country":
+                str(
+                    food.origin_country
+                    or ""
+                ),
+
+            "img_url":
+                str(
+                    food.img_url
+                    or ""
+                )
+
+        }
+
+    )
+
+df_foods = pd.DataFrame(
+    food_records
 )
 
-df_interactions = pd.read_csv(
-    PATHS["raw_interactions"]
-)
-
-df_indo = pd.read_csv(
-    PATHS["indo_recipes"]
-)
+session.close()
 
 # ------------------------------------------------------------
 # DATASET SHAPE
 # ------------------------------------------------------------
 
 print(
-    "Dataset Shape"
+    "Database Shape"
 )
 
 print(
@@ -142,15 +153,7 @@ print(
 )
 
 print(
-    f"RAW Recipes         : {df_recipes.shape}"
-)
-
-print(
-    f"Interactions        : {df_interactions.shape}"
-)
-
-print(
-    f"Indonesian Recipes  : {df_indo.shape}"
+    f"Foods : {df_foods.shape}"
 )
 
 # ------------------------------------------------------------
@@ -166,36 +169,7 @@ print(
 )
 
 print(
-
-    df_recipes[
-        [
-            "name",
-            "ingredients",
-            "tags"
-        ]
-    ]
-
-    .isnull()
-
-    .sum()
-
-)
-
-print()
-
-print(
-
-    df_indo[
-        [
-            "Title",
-            "Ingredients"
-        ]
-    ]
-
-    .isnull()
-
-    .sum()
-
+    df_foods.isnull().sum()
 )
 
 # ------------------------------------------------------------
@@ -203,7 +177,7 @@ print(
 # ------------------------------------------------------------
 
 print(
-    "\nRAW Recipes Columns"
+    "\nFood Columns"
 )
 
 print(
@@ -211,19 +185,7 @@ print(
 )
 
 print(
-    df_recipes.columns.tolist()
-)
-
-print(
-    "\nIndonesian Recipes Columns"
-)
-
-print(
-    "-" * 50
-)
-
-print(
-    df_indo.columns.tolist()
+    df_foods.columns.tolist()
 )
 
 # ------------------------------------------------------------
@@ -239,13 +201,8 @@ print(
 )
 
 print(
-    f"RAW Recipes Duplicates : "
-    f"{df_recipes.duplicated().sum():,}"
-)
-
-print(
-    f"Indonesian Duplicates : "
-    f"{df_indo.duplicated().sum():,}"
+    f"Food Duplicates : "
+    f"{df_foods.duplicated().sum():,}"
 )
 # ============================================================
 # CELL 4 — TEXT CLEANING ENGINE
@@ -322,83 +279,20 @@ def clean_text(text):
 
     return text.strip()
 # ============================================================
-# CELL 5 — DATASET PREPARATION
+# CELL 5 & 6 — FOOD MASTER FROM DATABASE
 # ============================================================
 
 print(
-    "Preparing datasets...\n"
+    "Building food master from database...\n"
 )
 
 # ------------------------------------------------------------
-# FOOD.COM RECIPES
+# CLEAN TEXT
 # ------------------------------------------------------------
 
-df_recipes = df_recipes.dropna(
-    subset=["name"]
-).copy()
+df_foods["food_name"] = (
 
-# ------------------------------------------------------------
-# SAMPLING
-# ------------------------------------------------------------
-
-df_recipes = df_recipes.sample(
-
-    n=20000,
-
-    random_state=RANDOM_STATE
-
-).reset_index(
-    drop=True
-)
-
-# ------------------------------------------------------------
-# RENAME ID
-# ------------------------------------------------------------
-
-df_recipes = df_recipes.rename(
-
-    columns={
-        "id": "food_id"
-    }
-
-)
-
-# ------------------------------------------------------------
-# INDONESIAN RECIPES
-# ------------------------------------------------------------
-
-df_indo = df_indo.copy()
-
-# ------------------------------------------------------------
-# REMOVE EMPTY TITLES
-# ------------------------------------------------------------
-
-df_indo = df_indo.dropna(
-    subset=["Title"]
-)
-
-# ------------------------------------------------------------
-# RESET INDEX
-# ------------------------------------------------------------
-
-df_indo = df_indo.reset_index(
-    drop=True
-)
-# ============================================================
-# CELL 6 — FOOD MASTER BUILDER
-# ============================================================
-
-print(
-    "Building food master...\n"
-)
-
-# ------------------------------------------------------------
-# FOOD.COM DATASET
-# ------------------------------------------------------------
-
-df_recipes["food_name"] = (
-
-    df_recipes["name"]
+    df_foods["food_name"]
 
     .fillna("")
 
@@ -408,13 +302,9 @@ df_recipes["food_name"] = (
 
 )
 
-# ------------------------------------------------------------
-# INGREDIENTS
-# ------------------------------------------------------------
+df_foods["ingredients_clean"] = (
 
-df_recipes["ingredients_clean"] = (
-
-    df_recipes["ingredients"]
+    df_foods["ingredients"]
 
     .fillna("")
 
@@ -424,13 +314,33 @@ df_recipes["ingredients_clean"] = (
 
 )
 
-# ------------------------------------------------------------
-# TAGS
-# ------------------------------------------------------------
+df_foods["category_clean"] = (
 
-df_recipes["tags_clean"] = (
+    df_foods["category"]
 
-    df_recipes["tags"]
+    .fillna("")
+
+    .apply(
+        clean_text
+    )
+
+)
+
+df_foods["description_clean"] = (
+
+    df_foods["description"]
+
+    .fillna("")
+
+    .apply(
+        clean_text
+    )
+
+)
+
+df_foods["origin_country_clean"] = (
+
+    df_foods["origin_country"]
 
     .fillna("")
 
@@ -444,147 +354,49 @@ df_recipes["tags_clean"] = (
 # FOOD TEXT
 # ------------------------------------------------------------
 
-df_recipes["food_text"] = (
+df_foods["food_text"] = (
 
-    df_recipes["food_name"] + " " +
+    df_foods["food_name"] + " " +
 
-    df_recipes["food_name"] + " " +
+    df_foods["food_name"] + " " +
 
-    df_recipes["food_name"] + " " +
+    df_foods["food_name"] + " " +
 
-    df_recipes["ingredients_clean"] + " " +
+    df_foods["ingredients_clean"] + " " +
 
-    df_recipes["tags_clean"]
+    df_foods["category_clean"] + " " +
+
+    df_foods["description_clean"] + " " +
+
+    df_foods["origin_country_clean"]
 
 )
 
-food_master_foodcom = (
+# ------------------------------------------------------------
+# FOOD MASTER
+# ------------------------------------------------------------
 
-    df_recipes[
+food_master = (
+
+    df_foods[
 
         [
+
             "food_id",
+
             "food_name",
-            "food_text"
+
+            "food_text",
+
+            "origin_country",
+
+            "img_url"
+
         ]
 
     ]
 
     .copy()
-
-)
-
-food_master_foodcom[
-    "food_source"
-] = "foodcom"
-
-# ============================================================
-# INDONESIAN DATASET
-# ============================================================
-
-df_indo["food_name"] = (
-
-    df_indo["Title"]
-
-    .fillna("")
-
-    .apply(
-        clean_text
-    )
-
-)
-
-# ------------------------------------------------------------
-# INGREDIENTS
-# ------------------------------------------------------------
-
-df_indo["ingredients_clean"] = (
-
-    df_indo["Ingredients"]
-
-    .fillna("")
-
-    .apply(
-        clean_text
-    )
-
-)
-
-# ------------------------------------------------------------
-# CATEGORY
-# ------------------------------------------------------------
-
-df_indo["category_clean"] = (
-
-    df_indo["Category"]
-
-    .fillna("")
-
-    .apply(
-        clean_text
-    )
-
-)
-
-# ------------------------------------------------------------
-# FOOD TEXT
-# ------------------------------------------------------------
-
-df_indo["food_text"] = (
-
-    df_indo["food_name"] + " " +
-
-    df_indo["food_name"] + " " +
-
-    df_indo["food_name"] + " " +
-
-    df_indo["ingredients_clean"] + " " +
-
-    df_indo["category_clean"]
-
-)
-
-food_master_indo = pd.DataFrame({
-
-    "food_id":
-
-        range(
-
-            1000000,
-
-            1000000 + len(df_indo)
-
-        ),
-
-    "food_name":
-
-        df_indo["food_name"],
-
-    "food_text":
-
-        df_indo["food_text"],
-
-    "food_source":
-
-        "indonesia"
-
-})
-
-# ============================================================
-# MERGE DATASETS
-# ============================================================
-
-food_master = pd.concat(
-
-    [
-
-        food_master_foodcom,
-
-        food_master_indo
-
-    ],
-
-    ignore_index=True
 
 )
 
@@ -606,10 +418,6 @@ food_master = (
 
 )
 
-# ------------------------------------------------------------
-# REMOVE EMPTY FOODS
-# ------------------------------------------------------------
-
 food_master = food_master[
 
     food_master["food_name"]
@@ -620,182 +428,138 @@ food_master = food_master[
 food_master = food_master.reset_index(
     drop=True
 )
-
 # ============================================================
 # FOOD TYPE DETECTION
 # ============================================================
 
-def detect_food_type(
-    food_text
-):
+def detect_food_type(food_text):
 
-    food_text = str(
-        food_text
-    ).lower()
+    food_text = str(food_text).lower()
 
     if any(
 
         keyword in food_text
 
-        for keyword in
+        for keyword in [
 
-        [
             "rice",
             "nasi"
+
         ]
 
     ):
-
         return "rice"
 
     if any(
 
         keyword in food_text
 
-        for keyword in
+        for keyword in [
 
-        [
             "noodle",
             "ramen",
             "udon",
             "mie"
+
         ]
 
     ):
-
         return "noodles"
 
     if any(
 
         keyword in food_text
 
-        for keyword in
+        for keyword in [
 
-        [
             "cake",
             "cookie",
             "dessert",
             "ice cream"
+
         ]
 
     ):
-
         return "dessert"
 
     if any(
 
         keyword in food_text
 
-        for keyword in
+        for keyword in [
 
-        [
             "coffee",
             "tea",
             "juice",
             "drink"
+
         ]
 
     ):
-
         return "drink"
 
     if any(
 
         keyword in food_text
 
-        for keyword in
+        for keyword in [
 
-        [
             "snack",
             "chips"
+
         ]
 
     ):
-
         return "snack"
 
     return "other"
+
 
 # ============================================================
 # CUISINE DETECTION
 # ============================================================
 
-def detect_cuisine(food_text):
+def detect_cuisine_from_country(country):
 
-    food_text = str(food_text).lower()
+    country = str(
+        country
+    ).lower()
 
-    if any(keyword in food_text for keyword in [
-
-        "rendang",
-        "sambal",
-        "nasi",
-        "gado gado",
-        "soto",
-        "bakso",
-        "ayam goreng",
-        "ayam bakar",
-        "sate",
-        "rawon",
-        "gudeg",
-        "pecel",
-        "lontong",
-        "opor",
-        "pempek",
-        "martabak",
-        "mie ayam",
-        "sop buntut",
-        "ayam penyet",
-        "nasi goreng"
-
-    ]):
+    if "indonesia" in country:
         return "indonesian"
 
-    elif any(keyword in food_text for keyword in [
-        "kimchi",
-        "tteokbokki",
-        "bibimbap",
-        "bulgogi",
-        "jajangmyeon",
-        "japchae",
-        "samgyeopsal",
-        "dakgalbi"
-    ]):
+    if "korea" in country:
         return "korean"
 
-    elif any(keyword in food_text for keyword in [
-        "sushi",
-        "ramen",
-        "udon",
-        "sashimi",
-        "tempura",
-        "teriyaki",
-        "yakitori"
-    ]):
+    if "japan" in country:
         return "japanese"
 
-    elif any(keyword in food_text for keyword in [
-        "burger",
-        "steak",
-        "western"
-    ]):
-        return "western"
-
-    elif any(keyword in food_text for keyword in [
-        "pizza",
-        "pasta",
-        "italian"
-    ]):
+    if "italy" in country:
         return "italian"
 
+    if any(
+
+        word in country
+
+        for word in [
+
+            "usa",
+            "america",
+            "united states"
+
+        ]
+
+    ):
+        return "western"
+
     return "other"
+
 
 # ============================================================
 # EXTRA FEATURES
 # ============================================================
 
-food_master[
-    "food_type"
-] = (
+food_master["food_type"] = (
 
     food_master["food_text"]
 
@@ -805,18 +569,15 @@ food_master[
 
 )
 
-food_master[
-    "cuisine"
-] = (
+food_master["cuisine"] = (
 
-    food_master["food_text"]
+    food_master["origin_country"]
 
     .apply(
-        detect_cuisine
+        detect_cuisine_from_country
     )
 
 )
-
 # ============================================================
 # CELL 7 — TF-IDF ENGINE
 # ============================================================
@@ -2117,7 +1878,7 @@ def show_my_recommendations(
 
     return recommendations
 
-
+"""
 # ============================================================
 # CELL 17 — EVALUATION DATASET BUILDER
 # ============================================================
@@ -2254,6 +2015,7 @@ print()
 print(
     evaluation_users.head()
 )
+"""
 # ============================================================
 # CELL 18 — EVALUATION VECTOR BUILDER
 # ============================================================
