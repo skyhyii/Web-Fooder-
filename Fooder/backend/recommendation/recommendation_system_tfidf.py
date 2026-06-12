@@ -60,11 +60,11 @@ if str(BACKEND_DIR) not in sys.path:
 # DATABASE IMPORT
 # ============================================================
 
-from database.db import (
+from Fooder.backend.database.db import (
     SessionLocal
 )
 
-from database.models import (
+from Fooder.backend.database.models import (
     Food
 )
 # ============================================================
