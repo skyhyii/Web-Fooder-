@@ -57,12 +57,11 @@
             <p>Select anything FooDer should avoid.</p>
 
             <div class="chips allergy-chips">
-              <span>Peanut</span>
-              <span>Seafood</span>
-              <span>Shellfish</span>
-              <span>Dairy</span>
-              <span>Egg</span>
-              <span>Gluten</span>
+              <span>Kacang</span>
+              <span>Udang</span>
+              <span>Kerang</span>
+              <span>Susu</span>
+              <span>Telur</span>
             </div>
 
             <input type="text" id="otherAllergy" placeholder="Other allergy / food restriction">
@@ -481,6 +480,12 @@
 
     <label>Profile Picture</label>
     <input type="file" id="editProfilePicture" accept="image/*">
+
+    <label>Allergies</label>
+    <input type="text" id="editAllergy" placeholder="Contoh: Udang, Kacang, Susu">
+
+    <label>Diet</label>
+    <input type="text" id="editDiet" placeholder="Contoh: Vegetarian, Vegan, Low Calorie">
 
     <button class="auth-btn" onclick="saveProfileChanges()">
       Save Changes

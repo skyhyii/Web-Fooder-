@@ -75,34 +75,38 @@ PREFERENCE_EXPANSION = {
     # CUISINE
     # ==========================================
 
-    '''"Indonesian": [
-        "sambal",
+    "Indonesian": [
+        "sate",
         "bakso",
         "rendang"
-    ],'''
+    ],
 
     "Korean": [
         "kimchi",
-        "bibimbap",
-        "bulgogi"
+        "korean",
+        "bulgogi",
+        "tteokbokki"
     ],
 
     "Japanese": [
         "sushi",
         "ramen",
-        "teriyaki"
+        "teriyaki",
+        "japanese"
     ],
 
     "Western": [
-        "burger",
+        "beef",
         "steak",
-        "sandwich"
+        "sandwich",
+        "western"
     ],
 
     "Chinese": [
         "capcay",
-        "bakmi",
-        "kwetiau"
+        "dimsum",
+        "fuyunghai",
+        "chinese"
     ],
 
     # ==========================================

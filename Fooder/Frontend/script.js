@@ -650,15 +650,33 @@ function renderUserProfile(user) {
   const likeEl = document.getElementById("likedCount");
   const swipeEl = document.getElementById("swipeCount");
   const matchEl = document.getElementById("matchCount");
-  const allergyEl = document.getElementById("allergie");
 
-  if (nameEl) nameEl.innerText = user.username || user.name || "User";
+  const savedUsername = localStorage.getItem("profileUsername");
+  const savedPicture = localStorage.getItem("profilePicture");
+  const savedAllergy = localStorage.getItem("profileAllergy");
+  const savedDiet = localStorage.getItem("profileDiet");
+
+  const displayName = savedUsername || user.username || user.name || "User";
+
+  if (nameEl) nameEl.innerText = displayName;
   if (bioEl) bioEl.innerText = `Foodie · ${user.city || "Indonesia"}`;
-  if (avatarEl) avatarEl.innerText = (user.username || user.name || "U").charAt(0).toUpperCase();
+
+  if (avatarEl) {
+    if (savedPicture) {
+      avatarEl.innerHTML = `
+        <img src="${savedPicture}" alt="Profile Picture">
+      `;
+    } else {
+      avatarEl.innerText = displayName.charAt(0).toUpperCase();
+    }
+  }
+
   if (likeEl) likeEl.innerText = user.like || 0;
   if (swipeEl) swipeEl.innerText = user.swipe || 0;
   if (matchEl) matchEl.innerText = user.match || 0;
-  if (allergyEl) allergyEl.innerText = user.allergy || "Tidak ada";
+
+  renderRestrictionList("allergie", savedAllergy || user.allergy || "", false);
+  renderRestrictionList("dietList", savedDiet || user.diet || "", true);
 }
 
 function showLoading() {
@@ -1048,87 +1066,158 @@ function hideLoading() {
 async function saveSwipe(action) {
   if (foods.length === 0) return;
 
-  // Ambil user dari sesi login
-  const storedUser = localStorage.getItem("fooderUser");
-  const currentUser = storedUser ? JSON.parse(storedUser) : null;
-  const userId = currentUser?.id || 1;
+  const currentFood = foods[foodIndex];
+
+  const storedUser =
+    localStorage.getItem("fooderUser");
+
+  const currentUser =
+    storedUser
+      ? JSON.parse(storedUser)
+      : null;
+
+  const userId =
+    currentUser?.id || 1;
 
   try {
-    const swipeResponse = await apiFetch(
-        `${API_BASE_URL}/swipe`,
-        {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json"
-            },
-            body: JSON.stringify({
-                user_id: userId,
-                food_id:
-                    foods[foodIndex].food_id ??
-                    foods[foodIndex].id,
-                action: action
-            })
-        }
+
+    console.log("=================================");
+    console.log(
+      "CURRENT INDEX:",
+      foodIndex
     );
 
-    const swipeData =
-        await swipeResponse.json();
+    console.log(
+      "CURRENT FOOD:",
+      currentFood
+    );
 
     console.log(
-        "SWIPE RESPONSE:",
-        swipeData
+      "SENDING FOOD_ID:",
+      currentFood.food_id ??
+      currentFood.id
+    );
+
+    console.log(
+      "FOOD NAME:",
+      currentFood.food_name
+    );
+
+    console.log(
+      "ACTION:",
+      action
+    );
+
+    console.log("=================================");
+
+    const swipeResponse =
+      await apiFetch(
+        `${API_BASE_URL}/swipe`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type":
+              "application/json"
+          },
+          body: JSON.stringify({
+            user_id: userId,
+            food_id:
+              currentFood.food_id ??
+              currentFood.id,
+            action: action
+          })
+        }
+      );
+
+    const swipeData =
+      await swipeResponse.json();
+
+    console.log(
+      "SWIPE RESPONSE:",
+      swipeData
     );
 
     if (
-        swipeData.match &&
-        swipeData.match.matched
+      swipeData.match &&
+      swipeData.match.matched
     ) {
-        console.log(
-            "MATCH FOUND:",
-            swipeData.match.food_name
-        );
 
-        await triggerFoodMatch({
-            food_name:
-                swipeData.match.food_name,
-            image:
-                foods[foodIndex].img_url ||
-                foods[foodIndex].image ||
-                foods[foodIndex].img
-        });
+      await triggerFoodMatch({
+        food_name:
+          swipeData.match.food_name,
 
-        return;
+        image:
+          currentFood.img_url ||
+          currentFood.image ||
+          currentFood.img
+      });
+
+      return;
     }
 
-    const recResponse = await apiFetch(
-      `${API_BASE_URL}/recommendations/personal/${userId}`
+    const recResponse =
+      await apiFetch(
+        `${API_BASE_URL}/recommendations/personal/${userId}`
+      );
+
+    const recData =
+      await recResponse.json();
+
+    console.log(
+      "NEW TFIDF RECOMMENDATIONS:",
+      recData
     );
 
-    const recData = await recResponse.json();
+    console.log(
+      "OLD INDEX:",
+      foodIndex
+    );
 
-    console.log("NEW TFIDF RECOMMENDATIONS:", recData);
+    console.log(
+      "NEW RECOMMENDATIONS:",
+      recData.recommendations
+    );
+    console.log(
+        "FIRST RECOMMENDATION:",
+        recData.recommendations[0]
+    );
+
+    console.log(
+        "SECOND RECOMMENDATION:",
+        recData.recommendations[1]
+    );
+
     if (recData.recommendations) {
-        foods = recData.recommendations;
-    }
-    // Update hitungan lokal di localStorage (swipe DB + sesi ini)
-    if (currentUser) {
-      currentUser.swipe = (currentUser.swipe || 0) + 1;
-      if (action === "like") {
-        currentUser.like = (currentUser.like || 0) + 1;
-      }
-      localStorage.setItem("fooderUser", JSON.stringify(currentUser));
 
-      // Perbarui tampilan profil jika sudah di-render
-      const swipeEl = document.getElementById("swipeCount");
-      const likeEl = document.getElementById("likedCount");
-      if (swipeEl) swipeEl.innerText = currentUser.swipe;
-      if (likeEl) likeEl.innerText = currentUser.like;
+      foods =
+        recData.recommendations;
+
+      foodIndex = 0;
+
+      updateFoodCard();
+
+      console.log(
+        "RESET INDEX TO 0"
+      );
     }
 
-    console.log(`Swipe ${action} saved for user ${userId}`);
+    console.log(
+      "INDEX AFTER UPDATE:",
+      foodIndex
+    );
+
+    console.log(
+      "FOOD AT CURRENT INDEX:",
+      foods[foodIndex]
+    );
 
   } catch (error) {
-    console.error("Failed to save swipe:", error);
+
+    console.error(
+      "Failed to save swipe:",
+      error
+    );
+
   }
 }
 
@@ -1230,23 +1319,6 @@ function renderFavoritePage() {
       </div>
 
     `).join("");
-}
-
-function swipeRight() {
-  if (!foodCard) return;
-
-  const currentFood = foods[foodIndex];
-
-  saveLikedFood(currentFood);
-
-  saveSwipe("like");
-
-  foodCard.style.transition = "0.35s ease";
-  foodCard.style.transform = "translateX(520px) rotate(25deg)";
-
-  setTimeout(() => {
-    nextFood();
-  }, 350);
 }
 
 async function loadRecommendations(userId) {
@@ -1561,17 +1633,90 @@ function waitForLoaderFinish() {
   return new Promise(resolve => setTimeout(resolve, 3500));
 }
 
-function swipeLeft() {
+// ── SWIPE SPINNER ────────────────────────────────────────────
+function showSwipeSpinner() {
+  if (document.getElementById("swipeSpinner")) return;
+  const spinner = document.createElement("div");
+  spinner.id = "swipeSpinner";
+  spinner.innerHTML = `<div class="swipe-spinner-ring"></div>`;
+  spinner.style.cssText = `
+    position: fixed;
+    bottom: 110px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 9998;
+    pointer-events: none;
+    animation: swipeSpinnerFadeIn 0.15s ease;
+  `;
+  if (!document.getElementById("swipeSpinnerCSS")) {
+    const s = document.createElement("style");
+    s.id = "swipeSpinnerCSS";
+    s.textContent = `
+      @keyframes swipeSpinnerFadeIn {
+        from { opacity: 0; transform: translateX(-50%) scale(0.8); }
+        to   { opacity: 1; transform: translateX(-50%) scale(1); }
+      }
+      @keyframes swipeSpinnerFadeOut {
+        from { opacity: 1; transform: translateX(-50%) scale(1); }
+        to   { opacity: 0; transform: translateX(-50%) scale(0.8); }
+      }
+      @keyframes swipeSpinnerSpin {
+        to { transform: rotate(360deg); }
+      }
+      .swipe-spinner-ring {
+        width: 36px; height: 36px;
+        border: 3px solid rgba(255,132,77,0.2);
+        border-top-color: #ff844d;
+        border-radius: 50%;
+        animation: swipeSpinnerSpin 0.7s linear infinite;
+        background: white;
+        box-shadow: 0 4px 16px rgba(255,95,95,0.18);
+      }
+    `;
+    document.head.appendChild(s);
+  }
+  document.body.appendChild(spinner);
+}
+
+function hideSwipeSpinner() {
+  const spinner = document.getElementById("swipeSpinner");
+  if (!spinner) return;
+  spinner.style.animation = "swipeSpinnerFadeOut 0.2s ease forwards";
+  setTimeout(() => spinner.remove(), 200);
+}
+
+// ── SWIPE HANDLERS ───────────────────────────────────────────
+async function swipeRight() {
   if (!foodCard) return;
 
-  saveSwipe("dislike");
+  const currentFood = foods[foodIndex];
+  saveLikedFood(currentFood);
 
+  // 1. Animasi kartu langsung — tidak menunggu API
+  foodCard.style.transition = "0.35s ease";
+  foodCard.style.transform = "translateX(520px) rotate(25deg)";
+
+  // 2. Spinner muncul sesaat saat API diproses di background
+  showSwipeSpinner();
+
+  await saveSwipe("like");
+
+  hideSwipeSpinner();
+}
+
+async function swipeLeft() {
+  if (!foodCard) return;
+
+  // 1. Animasi kartu langsung
   foodCard.style.transition = "0.35s ease";
   foodCard.style.transform = "translateX(-520px) rotate(-25deg)";
 
-  setTimeout(() => {
-    nextFood();
-  }, 350);
+  // 2. Spinner muncul sesaat saat API diproses di background
+  showSwipeSpinner();
+
+  await saveSwipe("dislike");
+
+  hideSwipeSpinner();
 }
 
 function resetCard() {
@@ -1964,14 +2109,24 @@ saveButtons.forEach((button) => {
 const editProfileModal = document.getElementById("editProfileModal");
 const editUsername = document.getElementById("editUsername");
 const editProfilePicture = document.getElementById("editProfilePicture");
+const editAllergy = document.getElementById("editAllergy");
+const editDiet = document.getElementById("editDiet");
 
 function openEditProfileModal() {
   if (!editProfileModal) return;
 
   const currentName = document.getElementById("profileName")?.innerText;
 
-  if (editUsername && currentName !== "Loading...") {
+  if (editUsername && currentName && currentName !== "Loading...") {
     editUsername.value = currentName;
+  }
+
+  if (editAllergy) {
+    editAllergy.value = localStorage.getItem("profileAllergy") || getRestrictionText("allergie");
+  }
+
+  if (editDiet) {
+    editDiet.value = localStorage.getItem("profileDiet") || getRestrictionText("dietList");
   }
 
   editProfileModal.classList.add("active");
@@ -1989,11 +2144,18 @@ window.closeEditProfileModal = closeEditProfileModal;
 function saveProfileChanges() {
   const newUsername = editUsername?.value.trim();
   const file = editProfilePicture?.files[0];
+  const newAllergy = editAllergy?.value.trim() || "";
+  const newDiet = editDiet?.value.trim() || "";
 
   if (newUsername) {
-    document.getElementById("profileName").innerText = newUsername;
-    document.getElementById("profileAvatar").innerText =
-      newUsername.charAt(0).toUpperCase();
+    const profileName = document.getElementById("profileName");
+    const avatar = document.getElementById("profileAvatar");
+
+    if (profileName) profileName.innerText = newUsername;
+
+    if (avatar && !avatar.querySelector("img")) {
+      avatar.innerText = newUsername.charAt(0).toUpperCase();
+    }
 
     localStorage.setItem("profileUsername", newUsername);
   }
@@ -2004,9 +2166,11 @@ function saveProfileChanges() {
     reader.onload = function (event) {
       const avatar = document.getElementById("profileAvatar");
 
-      avatar.innerHTML = `
-        <img src="${event.target.result}" alt="Profile Picture">
-      `;
+      if (avatar) {
+        avatar.innerHTML = `
+          <img src="${event.target.result}" alt="Profile Picture">
+        `;
+      }
 
       localStorage.setItem("profilePicture", event.target.result);
     };
@@ -2014,26 +2178,78 @@ function saveProfileChanges() {
     reader.readAsDataURL(file);
   }
 
+  localStorage.setItem("profileAllergy", newAllergy);
+  localStorage.setItem("profileDiet", newDiet);
+
+  renderRestrictionList("allergie", newAllergy, false);
+  renderRestrictionList("dietList", newDiet, true);
+
   closeEditProfileModal();
 }
 
 window.saveProfileChanges = saveProfileChanges;
 
+
+function getRestrictionText(containerId) {
+  const container = document.getElementById(containerId);
+  if (!container) return "";
+
+  return [...container.querySelectorAll("span")]
+    .map((item) => item.textContent.trim())
+    .filter((item) => item && item.toLowerCase() !== "none" && item.toLowerCase() !== "tidak ada")
+    .join(", ");
+}
+
+function renderRestrictionList(containerId, value, isDiet = false) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+
+  const items = value
+    ? value
+        .split(",")
+        .map((item) => item.trim())
+        .filter(Boolean)
+    : [];
+
+  if (items.length === 0) {
+    container.innerHTML = `
+      <span class="${isDiet ? "green" : ""}">None</span>
+    `;
+    return;
+  }
+
+  container.innerHTML = items
+    .map((item) => `
+      <span class="${isDiet ? "green" : ""}">${item}</span>
+    `)
+    .join("");
+}
+
 function loadSavedProfile() {
   const savedUsername = localStorage.getItem("profileUsername");
   const savedPicture = localStorage.getItem("profilePicture");
+  const savedAllergy = localStorage.getItem("profileAllergy");
+  const savedDiet = localStorage.getItem("profileDiet");
 
-  if (savedUsername) {
-    document.getElementById("profileName").innerText = savedUsername;
-    document.getElementById("profileAvatar").innerText =
-      savedUsername.charAt(0).toUpperCase();
+  const profileName = document.getElementById("profileName");
+  const profileAvatar = document.getElementById("profileAvatar");
+
+  if (savedUsername && profileName) {
+    profileName.innerText = savedUsername;
   }
 
-  if (savedPicture) {
-    document.getElementById("profileAvatar").innerHTML = `
+  if (savedUsername && profileAvatar) {
+    profileAvatar.innerText = savedUsername.charAt(0).toUpperCase();
+  }
+
+  if (savedPicture && profileAvatar) {
+    profileAvatar.innerHTML = `
       <img src="${savedPicture}" alt="Profile Picture">
     `;
   }
+
+  renderRestrictionList("allergie", savedAllergy, false);
+  renderRestrictionList("dietList", savedDiet, true);
 }
 
 /* INIT */

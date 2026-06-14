@@ -1,2535 +1,1221 @@
 # ============================================================
+# RECOMMENDATION SYSTEM — TF-IDF
+# Data source : Database (SQLAlchemy) via foods.py model
+# ============================================================
+
+# ============================================================
 # CELL 1 — IMPORT LIBRARIES
 # ============================================================
 
 import re
-import ast
-import json
 import warnings
 
 import numpy as np
 import pandas as pd
 
-from pathlib import Path
 from collections import defaultdict
 
 # ------------------------------------------------------------
 # MACHINE LEARNING
 # ------------------------------------------------------------
 
-from sklearn.feature_extraction.text import (
-    TfidfVectorizer
-)
-
-from sklearn.metrics.pairwise import (
-    cosine_similarity
-)
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
 
 # ------------------------------------------------------------
-# EVALUATION
+# DATABASE
 # ------------------------------------------------------------
 
-from sklearn.model_selection import (
-    train_test_split
-)
+from sqlalchemy.orm import Session
+from Fooder.backend.database.models import Food
 
 # ------------------------------------------------------------
 # SETTINGS
 # ------------------------------------------------------------
 
-warnings.filterwarnings(
-    "ignore"
-)
+warnings.filterwarnings("ignore")
 
 RANDOM_STATE = 42
 
-print(
-    "Libraries imported successfully."
+print("Libraries imported successfully.")
+
+from Fooder.backend.recommendation.preference_keywords import (
+    PREFERENCE_EXPANSION
 )
+
 # ============================================================
-# CELL 2 — CONFIGURATION
-# ============================================================
-import sys
-from pathlib import Path
-
-BACKEND_DIR = Path(__file__).resolve().parent.parent
-
-if str(BACKEND_DIR) not in sys.path:
-    sys.path.append(str(BACKEND_DIR))
-# ============================================================
-# DATABASE IMPORT
-# ============================================================
-
-from Fooder.backend.database.db import (
-    SessionLocal
-)
-
-from Fooder.backend.database.models import (
-    Food
-)
-# ============================================================
-# CELL 3 — LOAD DATABASE & AUDIT
-# ============================================================
-
-print(
-    "Loading foods from database...\n"
-)
-
-# ------------------------------------------------------------
-# LOAD FROM DATABASE
-# ------------------------------------------------------------
-
-session = SessionLocal()
-
-foods = session.query(Food).all()
-
-food_records = []
-
-for food in foods:
-
-    food_records.append(
-
-        {
-
-            "food_id":
-                food.id,
-
-            "food_name":
-                str(
-                    food.title_cleaned
-                    or ""
-                ),
-
-            "ingredients":
-                str(
-                    food.ingredients_cleaned
-                    or ""
-                ),
-
-            "category":
-                str(
-                    food.category
-                    or ""
-                ),
-
-            "description":
-                str(
-                    food.description
-                    or ""
-                ),
-
-            "origin_country":
-                str(
-                    food.origin_country
-                    or ""
-                ),
-
-            "img_url":
-                str(
-                    food.img_url
-                    or ""
-                )
-
-        }
-
-    )
-
-df_foods = pd.DataFrame(
-    food_records
-)
-
-session.close()
-
-# ------------------------------------------------------------
-# DATASET SHAPE
-# ------------------------------------------------------------
-
-print(
-    "Database Shape"
-)
-
-print(
-    "-" * 50
-)
-
-print(
-    f"Foods : {df_foods.shape}"
-)
-
-# ------------------------------------------------------------
-# MISSING VALUES
-# ------------------------------------------------------------
-
-print(
-    "\nMissing Values"
-)
-
-print(
-    "-" * 50
-)
-
-print(
-    df_foods.isnull().sum()
-)
-
-# ------------------------------------------------------------
-# COLUMN INSPECTION
-# ------------------------------------------------------------
-
-print(
-    "\nFood Columns"
-)
-
-print(
-    "-" * 50
-)
-
-print(
-    df_foods.columns.tolist()
-)
-
-# ------------------------------------------------------------
-# DUPLICATE CHECK
-# ------------------------------------------------------------
-
-print(
-    "\nDuplicate Check"
-)
-
-print(
-    "-" * 50
-)
-
-print(
-    f"Food Duplicates : "
-    f"{df_foods.duplicated().sum():,}"
-)
-# ============================================================
-# CELL 4 — TEXT CLEANING ENGINE
+# CELL 2 — TEXT CLEANING ENGINE
 # ============================================================
 
 def clean_text(text):
-
     """
     Universal text cleaning function
     untuk seluruh metadata makanan.
     """
 
-    # --------------------------------------------------------
-    # HANDLE NULL
-    # --------------------------------------------------------
-
-    if pd.isna(text):
-
+    if pd.isna(text) or text is None:
         return ""
 
-    # --------------------------------------------------------
-    # TO STRING
-    # --------------------------------------------------------
-
     text = str(text)
-
-    # --------------------------------------------------------
-    # LOWERCASE
-    # --------------------------------------------------------
-
     text = text.lower()
 
-    # --------------------------------------------------------
-    # REMOVE NUMBERS
-    # --------------------------------------------------------
+    # Remove numbers
+    text = re.sub(r"\d+", " ", text)
 
-    text = re.sub(
+    # Remove special characters
+    text = re.sub(r"[^a-zA-Z\s]", " ", text)
 
-        r"\d+",
-
-        " ",
-
-        text
-
-    )
-
-    # --------------------------------------------------------
-    # REMOVE SPECIAL CHARACTERS
-    # --------------------------------------------------------
-
-    text = re.sub(
-
-        r"[^a-zA-Z\s]",
-
-        " ",
-
-        text
-
-    )
-
-    # --------------------------------------------------------
-    # REMOVE EXTRA SPACES
-    # --------------------------------------------------------
-
-    text = re.sub(
-
-        r"\s+",
-
-        " ",
-
-        text
-
-    )
+    # Remove extra spaces
+    text = re.sub(r"\s+", " ", text)
 
     return text.strip()
+
+
 # ============================================================
-# CELL 5 & 6 — FOOD MASTER FROM DATABASE
-# ============================================================
-
-print(
-    "Building food master from database...\n"
-)
-
-# ------------------------------------------------------------
-# CLEAN TEXT
-# ------------------------------------------------------------
-
-df_foods["food_name"] = (
-
-    df_foods["food_name"]
-
-    .fillna("")
-
-    .apply(
-        clean_text
-    )
-
-)
-
-df_foods["ingredients_clean"] = (
-
-    df_foods["ingredients"]
-
-    .fillna("")
-
-    .apply(
-        clean_text
-    )
-
-)
-
-df_foods["category_clean"] = (
-
-    df_foods["category"]
-
-    .fillna("")
-
-    .apply(
-        clean_text
-    )
-
-)
-
-df_foods["description_clean"] = (
-
-    df_foods["description"]
-
-    .fillna("")
-
-    .apply(
-        clean_text
-    )
-
-)
-
-df_foods["origin_country_clean"] = (
-
-    df_foods["origin_country"]
-
-    .fillna("")
-
-    .apply(
-        clean_text
-    )
-
-)
-
-# ------------------------------------------------------------
-# FOOD TEXT
-# ------------------------------------------------------------
-
-df_foods["food_text"] = (
-
-    df_foods["food_name"] + " " +
-
-    df_foods["food_name"] + " " +
-
-    df_foods["food_name"] + " " +
-
-    df_foods["ingredients_clean"] + " " +
-
-    df_foods["category_clean"] + " " +
-
-    df_foods["description_clean"] + " " +
-
-    df_foods["origin_country_clean"]
-
-)
-
-# ------------------------------------------------------------
-# FOOD MASTER
-# ------------------------------------------------------------
-
-food_master = (
-
-    df_foods[
-
-        [
-
-            "food_id",
-
-            "food_name",
-
-            "food_text",
-
-            "origin_country",
-
-            "img_url"
-
-        ]
-
-    ]
-
-    .copy()
-
-)
-
-# ------------------------------------------------------------
-# REMOVE DUPLICATES
-# ------------------------------------------------------------
-
-food_master = (
-
-    food_master
-
-    .drop_duplicates(
-        subset=["food_name"]
-    )
-
-    .reset_index(
-        drop=True
-    )
-
-)
-
-food_master = food_master[
-
-    food_master["food_name"]
-    != ""
-
-]
-
-food_master = food_master.reset_index(
-    drop=True
-)
-# ============================================================
-# FOOD TYPE DETECTION
+# CELL 3 — LOAD FOOD MASTER FROM DATABASE
 # ============================================================
 
-def detect_food_type(food_text):
+def load_food_master_from_db(db: Session) -> pd.DataFrame:
+    """
+    Membaca seluruh data makanan dari tabel `foods`
+    (model Food) dan membangun food_master DataFrame
+    yang siap dipakai oleh TF-IDF engine.
 
+    Kolom yang dihasilkan:
+        food_id       – id dari database
+        food_name     – title_cleaned (sudah lowercase + clean)
+        food_text     – gabungan food_name × 3 + ingredients + category
+        food_type     – hasil detect_food_type()
+        cuisine       – hasil detect_cuisine()
+        food_source   – selalu "database"
+    """
+
+    print("Loading food master from database...")
+
+    # --------------------------------------------------------
+    # QUERY ALL FOODS
+    # --------------------------------------------------------
+
+    foods = db.query(Food).all()
+
+    if not foods:
+        raise ValueError(
+            "Tabel foods kosong. Pastikan database sudah di-seed."
+        )
+
+    # --------------------------------------------------------
+    # BUILD RAW DATAFRAME
+    # --------------------------------------------------------
+
+    rows = []
+
+    for food in foods:
+        rows.append({
+            "food_id":    food.id,
+            "raw_name":   food.title_cleaned   or "",
+            "raw_ingr":   food.ingredients_cleaned or "",
+            "raw_cat":    food.category        or "",
+            "raw_country": food.origin_country or "",
+        })
+
+    df = pd.DataFrame(rows)
+
+    # --------------------------------------------------------
+    # CLEAN TEXT FIELDS
+    # --------------------------------------------------------
+
+    df["food_name"] = df["raw_name"].apply(clean_text)
+    df["ingredients_clean"] = df["raw_ingr"].apply(clean_text)
+    df["category_clean"] = df["raw_cat"].apply(clean_text)
+    df["origin_country"] = df["raw_country"].apply(clean_text)
+
+    # --------------------------------------------------------
+    # BUILD food_text
+    # Nama diulang 3× agar bobotnya lebih tinggi di TF-IDF
+    # --------------------------------------------------------
+    # BUILD BASE food_text
+    df["food_text"] = (
+        df["food_name"] + " " +
+        df["food_name"] + " " +
+        df["food_name"] + " " +
+        df["ingredients_clean"] + " " +
+        df["category_clean"]
+    )
+
+    # DETECT TAGS
+    df["food_type"] = df["food_text"].apply(detect_food_type)
+    df["cuisine"]   = df["food_text"].apply(detect_cuisine)
+    df["taste_mood"] = df["food_text"].apply(detect_taste_mood)
+    df["requirement"] = df["food_text"].apply(detect_requirement)
+   
+    # BERSIHKAN TAG
+    df["food_type"] = df["food_type"].replace("other", "")
+    df["cuisine"]   = df["cuisine"].replace("other", "")
+
+    # BUILD FINAL food_text
+    df["food_text"] = (
+        df["food_text"] + " " +
+        df["taste_mood"].fillna("") + " " +
+        df["food_type"].fillna("")
+
+    )
+
+    # --------------------------------------------------------
+    # REMOVE EMPTY / DUPLICATE NAMES
+    # --------------------------------------------------------
+
+    df = df[df["food_name"] != ""]
+    df = df.drop_duplicates(subset=["food_name"]).reset_index(drop=True)
+
+    # --------------------------------------------------------
+    # EXTRA FEATURES
+    # --------------------------------------------------------
+
+    df["food_type"] = df["food_text"].apply(detect_food_type)
+    df["taste_mood"] = df["food_text"].apply(detect_taste_mood)
+
+    df["food_source"] = "database"
+
+    # --------------------------------------------------------
+    # FINAL COLUMNS
+    # --------------------------------------------------------
+
+    food_master = df[[
+        "food_id",
+        "food_name",
+        "food_text",
+        "food_type",
+        "cuisine",
+        "taste_mood",
+        "requirement",
+        "food_source",
+        "origin_country"
+    ]].copy()
+    
+    print("\nFOOD_MASTER COLUMNS:")
+    print(df.columns.tolist())
+    
+    return food_master
+
+
+# ============================================================
+# CELL 4 — TF-IDF ENGINE BUILDER
+# ============================================================
+
+def build_tfidf_engine(food_master: pd.DataFrame):
+    """
+    Membangun TF-IDF vectorizer dan matrix
+    dari food_master yang sudah dimuat.
+
+    Returns:
+        tfidf        – fitted TfidfVectorizer
+        tfidf_matrix – sparse matrix (n_foods × n_features)
+    """
+
+    print("Building TF-IDF matrix...")
+
+    tfidf = TfidfVectorizer(
+        max_features=5000,
+        stop_words="english",
+        ngram_range=(1, 2),
+        min_df=2,
+        max_df=0.95,
+    )
+
+    tfidf_matrix = tfidf.fit_transform(food_master["food_text"])
+
+    print(f"TF-IDF Matrix Shape : {tfidf_matrix.shape}")
+    print(f"Vocabulary Size     : {len(tfidf.get_feature_names_out())}")
+
+    return tfidf, tfidf_matrix
+
+
+# ============================================================
+# CELL 5 — FOOD TYPE & CUISINE DETECTION
+# ============================================================
+
+def detect_taste_mood(food_text: str) -> str:
     food_text = str(food_text).lower()
 
-    if any(
+    spicy_keywords = [
+        "pedas", "sambal", "balado",
+        "rica", "rawit", "cabai",
+        "cabe", "mercon", "geprek", "pedes"
+    ]
 
-        keyword in food_text
+    sweet_keywords = [
+        "manis", "gula", "madu",
+        "karamel", "sweet",
+        "coklat", "sirup"
+    ]
 
-        for keyword in [
+    savory_keywords = [
+        "gurih", "kaldu", "bawang",
+        "saos tiram", "kecap asin",
+        "mentega", "garlic"
+    ]
 
-            "rice",
-            "nasi"
+    comfort_keywords = [
+        "bakso", "soto", "sup",
+        "mie ayam", "nasi goreng",
+        "opor", "rawon", "gulai",
+        "tongseng", "ayam goreng"
+    ]
 
-        ]
+    healthy_keywords = [
+        "salad", "sayur", "brokoli",
+        "bayam", "wortel",
+        "kukus", "rebus",
+        "buah", "vegetable"
+    ]
 
-    ):
-        return "rice"
+    if any(k in food_text for k in spicy_keywords):
+        return "pedas sambal cabe"
 
-    if any(
+    if any(k in food_text for k in savory_keywords):
+        return "gurih bawang kaldu"
 
-        keyword in food_text
+    if any(k in food_text for k in comfort_keywords):
+        return "bakso gulai soto"
 
-        for keyword in [
+    if any(k in food_text for k in healthy_keywords):
+        return "salad sayur buah"
+    
+    if any(k in food_text for k in sweet_keywords):
+        return "manis gula coklat"
 
-            "noodle",
-            "ramen",
-            "udon",
-            "mie"
+    return None
 
-        ]
+def detect_food_type(food_text: str) -> str:
+    food_text = str(food_text).lower()
 
-    ):
-        return "noodles"
+    rice_keywords = [
+        "rice", "nasi", "biryani", "fried rice",
+        "nasi goreng", "nasi uduk", "nasi kuning",
+        "nasi liwet", "nasi bakar", "nasi tim"
+    ]
 
-    if any(
+    noodle_keywords = [
+        "noodle", "noodles", "ramen", "udon",
+        "mie", "kwetiau", "bihun",
+        "spaghetti", "fettuccine", "linguine",
+        "macaroni", "penne", "fusili", "fusilli", "kwetiau", "soun"
+    ]
 
-        keyword in food_text
+    chicken_keywords = [
+        "ayam", "chicken",
+        "karaage", "katsu",
+        "drumstick"
+    ]
+    
+    seafood_keywords = [
+        "udang", "ikan",
+        "cumi", "kepiting",
+        "kerang", "tuna",
+        "salmon"
+    ]
+    
+    dessert_keywords = [
+        "cake", "cookie", "dessert", "ice cream",
+        "pudding", "puding", "brownies", "donut", "doughnut",
+        "pie", "tart", "muffin", "waffle",
+        "pancake", "cheesecake", "es krim", "kolak", "kue",
+        "donat",
+    ]
 
-        for keyword in [
+    snack_keywords = [
+        "snack", "chips", "keripik",
+        "cracker", "popcorn", "nachos",
+        "risoles", "pastel", "gorengan",
+        "cireng", "cilok", "cimol",
+        "dimsum", "siomay", "perkedel", "risoles",
+        "pastel"
+    ]
 
-            "cake",
-            "cookie",
-            "dessert",
-            "ice cream"
+    if any(k in food_text for k in rice_keywords):
+        return "rice nasi"
 
-        ]
+    if any(k in food_text for k in noodle_keywords):
+        return "mie ramen kwetiau"
 
-    ):
-        return "dessert"
+    if any(k in food_text for k in chicken_keywords):
+        return "ayam chicken katsu"
 
-    if any(
+    if any(k in food_text for k in seafood_keywords):
+        return "udang cumi ikan"
+    
+    if any(k in food_text for k in dessert_keywords):
+        return "cheesecake pie panekuk"
 
-        keyword in food_text
+    if any(k in food_text for k in snack_keywords):
+        return "risoles cireng dimsum"
 
-        for keyword in [
-
-            "coffee",
-            "tea",
-            "juice",
-            "drink"
-
-        ]
-
-    ):
-        return "drink"
-
-    if any(
-
-        keyword in food_text
-
-        for keyword in [
-
-            "snack",
-            "chips"
-
-        ]
-
-    ):
-        return "snack"
-
-    return "other"
+    return None
 
 
-# ============================================================
-# CUISINE DETECTION
-# ============================================================
+def detect_cuisine(food_text: str) -> str:
+    food_text = str(food_text).lower()
 
-def detect_cuisine_from_country(country):
+    indonesian_keywords = [
+        "sambal", "rendang", "nasi",
+        "gado gado", "gado-gado",
+        "soto", "rawon", "pempek",
+        "bakso", "pecel", "lontong",
+        "opor", "gulai", "ayam goreng",
+        "mie ayam", "mie goreng",
+        "tongseng", "sate", "satay",
+        "martabak", "nasi goreng",
+        "ayam bakar", "ikan bakar"
+    ]
 
-    country = str(
-        country
-    ).lower()
+    korean_keywords = [
+        "kimchi",
+        "bibimbap", "bulgogi",
+        "korean", "dakgalbi"
+    ]
 
-    if "indonesia" in country:
+    japanese_keywords = [
+        "sushi", "ramen", "udon",
+        "tempura", "teriyaki",
+        "katsu", "donburi",
+        "yakitori", "gyudon",
+        "japanese", "miso",
+        "onigiri", "takoyaki"
+    ]
+
+    western_keywords = [
+        "burger", "steak",
+        "western", "sandwich",
+        "hotdog", "roast beef",
+        "bbq", "barbecue",
+        "mashed potato",
+        "fried chicken"
+    ]
+
+    chinese_keywords = [
+        "capcay", "kwetiau",
+        "bakmi", "fuyunghai",
+        "dimsum", "hakau",
+        "sapo tahu", "kungpao"
+    ]
+
+    if any(k in food_text for k in indonesian_keywords):
         return "indonesian"
 
-    if "korea" in country:
+    if any(k in food_text for k in korean_keywords):
         return "korean"
 
-    if "japan" in country:
+    if any(k in food_text for k in japanese_keywords):
         return "japanese"
 
-    if "italy" in country:
-        return "italian"
-
-    if any(
-
-        word in country
-
-        for word in [
-
-            "usa",
-            "america",
-            "united states"
-
-        ]
-
-    ):
+    if any(k in food_text for k in western_keywords):
         return "western"
 
-    return "other"
+    if any(k in food_text for k in chinese_keywords):
+        return "chinese"
+
+    return None
+
+def detect_requirement(food_text: str) -> str:
+    food_text = str(food_text).lower()
+
+    protein_keywords = [
+        "ayam", "daging",
+        "sapi", "telur",
+        "udang", "ikan",
+        "tuna", "salmon",
+        "tempe"
+    ]
+    
+    vegetarian_keywords = [
+        "tempe", "tahu",
+        "brokoli", "bayam",
+        "wortel", "jamur"
+    ]
+
+    low_calorie_keywords = [
+        "salad", "sayur",
+        "rebus", "kukus",
+        "buah", "brokoli"
+    ]
+
+    if any(k in food_text for k in protein_keywords):
+        return "ayam daging telur"
+
+    # Vegetarian hanya jika tidak ada protein hewani
+    if any(k in food_text for k in vegetarian_keywords):
+        return "tahu tempe"
+
+    if any(k in food_text for k in low_calorie_keywords):
+        return "low_calorie"
+
+    return None
+#==============================================
+# CELL 6 — FOOD ATTRIBUTE EXTRACTION
+# ============================================================
+
+ATTRIBUTE_KEYWORDS = {
+    # Taste
+    "sweet":   ["sweet", "honey", "sugar", "cake", "cookie", "dessert"],
+    "savory":  ["savory", "beef", "chicken", "garlic", "onion"],
+    "spicy":   ["spicy", "chili", "pepper", "sambal"],
+    "cheesy":  ["cheese", "cream", "butter"],
+    "fresh":   ["salad", "fruit", "vegetable", "fresh"],
+    # Protein
+    "beef":    ["beef"],
+    "chicken": ["chicken"],
+    "seafood": ["fish", "shrimp", "crab", "lobster", "squid"],
+    # Food type
+    "rice":    ["rice", "nasi"],
+    "noodles": ["noodle", "ramen", "udon", "mie"],
+    "dessert": ["dessert", "cake", "cookie", "ice cream"],
+    "drink":   ["coffee", "tea", "juice", "drink"],
+    "snack":   ["snack", "chips"],
+    # Cuisine
+    "indonesian": ["rendang", "sambal", "nasi"],
+    "korean":     ["kimchi", "tteokbokki", "korean"],
+    "japanese":   ["sushi", "ramen", "japanese"],
+    "western":    ["burger", "steak", "western"],
+    "italian":    ["pizza", "pasta", "italian"],
+}
+
+
+def extract_food_attributes(food_text: str) -> list:
+    food_text = str(food_text).lower()
+    attributes = []
+
+    for attribute, keywords in ATTRIBUTE_KEYWORDS.items():
+        for keyword in keywords:
+            if keyword in food_text:
+                attributes.append(attribute)
+                break
+
+    return attributes
 
 
 # ============================================================
-# EXTRA FEATURES
-# ============================================================
-
-food_master["food_type"] = (
-
-    food_master["food_text"]
-
-    .apply(
-        detect_food_type
-    )
-
-)
-
-food_master["cuisine"] = (
-
-    food_master["origin_country"]
-
-    .apply(
-        detect_cuisine_from_country
-    )
-
-)
-# ============================================================
-# CELL 7 — TF-IDF ENGINE
-# ============================================================
-
-print(
-    "Building TF-IDF matrix...\n"
-)
-
-# ------------------------------------------------------------
-# TF-IDF CONFIGURATION
-# ------------------------------------------------------------
-
-tfidf = TfidfVectorizer(
-
-    max_features=5000,
-
-    stop_words="english",
-
-    ngram_range=(1, 2),
-
-    min_df=2,
-
-    max_df=0.95
-
-)
-
-# ------------------------------------------------------------
-# FIT TF-IDF
-# ------------------------------------------------------------
-
-tfidf_matrix = tfidf.fit_transform(
-
-    food_master["food_text"]
-
-)
-
-# ------------------------------------------------------------
-# VOCABULARY
-# ------------------------------------------------------------
-
-feature_names = (
-
-    tfidf.get_feature_names_out()
-
-)
-
-# ------------------------------------------------------------
-# SUMMARY
-# ------------------------------------------------------------
-
-print(
-    "TF-IDF Matrix Shape:"
-)
-
-print(
-    tfidf_matrix.shape
-)
-
-print()
-
-print(
-    "Vocabulary Size:"
-)
-
-print(
-    len(feature_names)
-)
-
-print()
-
-print(
-    "Sample Features:"
-)
-
-print(
-    feature_names[:30]
-)
-# ============================================================
-# CELL 8 — USER SESSION MODEL
+# CELL 7 — USER SESSION MODEL
 # ============================================================
 
 class UserSession:
-
     """
     Menyimpan seluruh preferensi user
     selama satu sesi penggunaan FooDer.
     """
 
     def __init__(self):
-
-        # ----------------------------------------------------
-        # SWIPE HISTORY
-        # ----------------------------------------------------
-
-        self.liked_foods = []
-
+        # Swipe history
+        self.liked_foods    = []
         self.disliked_foods = []
 
-        # ----------------------------------------------------
-        # FOOD REQUIREMENT
-        # ----------------------------------------------------
+        # Food requirements
+        self.selected_requirements = []  # e.g. ["Halal", "Vegetarian"]
 
-        self.selected_requirements = []
+        # UI preferences
+        self.selected_moods      = []    # e.g. ["Sweet", "Fresh"]
+        self.selected_food_types = []    # e.g. ["Rice"]
+        self.selected_cuisines   = []    # e.g. ["Japanese"]
 
-        # Contoh:
-        #
-        # [
-        #   "Halal",
-        #   "Vegetarian",
-        #   "No Seafood"
-        # ]
-
-        # ----------------------------------------------------
-        # UI PREFERENCES
-        # ----------------------------------------------------
-
-        self.selected_moods = []
-
-        # Contoh:
-        #
-        # [
-        #   "Sweet",
-        #   "Fresh"
-        # ]
-
-        self.selected_food_types = []
-
-        # Contoh:
-        #
-        # [
-        #   "Rice"
-        # ]
-
-        self.selected_cuisines = []
-
-        # Contoh:
-        #
-        # [
-        #   "Japanese"
-        # ]
-
-        # ----------------------------------------------------
-        # SESSION PROFILE
-        # ----------------------------------------------------
-
+        self.allergies   = []
+        
+        # Session profile
         self.today_taste_profile = {}
 
-    # ========================================================
-    # LIKE
-    # ========================================================
-
-    def add_like(
-
-        self,
-        food_id
-
-    ):
-
+    def add_like(self, food_id: int):
         if food_id not in self.liked_foods:
+            self.liked_foods.append(food_id)
 
-            self.liked_foods.append(
-                food_id
-            )
-
-    # ========================================================
-    # DISLIKE
-    # ========================================================
-
-    def add_dislike(
-
-        self,
-        food_id
-
-    ):
-
+    def add_dislike(self, food_id: int):
         if food_id not in self.disliked_foods:
+            self.disliked_foods.append(food_id)
 
-            self.disliked_foods.append(
-                food_id
-            )
-
-    # ========================================================
-    # SUMMARY
-    # ========================================================
-
-    def summary(self):
-
+    def summary(self) -> dict:
         return {
-
-            "liked_foods":
-
-                len(
-                    self.liked_foods
-                ),
-
-            "disliked_foods":
-
-                len(
-                    self.disliked_foods
-                ),
-
-            "moods":
-
-                self.selected_moods,
-
-            "food_types":
-
-                self.selected_food_types,
-
-            "cuisines":
-
-                self.selected_cuisines,
-
-            "requirements":
-
-                self.selected_requirements
-
+            "liked_foods":    len(self.liked_foods),
+            "disliked_foods": len(self.disliked_foods),
+            "moods":          self.selected_moods,
+            "food_types":     self.selected_food_types,
+            "cuisines":       self.selected_cuisines,
+            "requirements":   self.selected_requirements,
         }
 
-# ============================================================
-# CREATE SESSION
-# ============================================================
 
-user_session = UserSession()
-
-print(
-    "User session initialized."
-)
 # ============================================================
-# CELL 9 — SESSION QUERY BUILDER
+# CELL 8 — SESSION QUERY BUILDER
 # ============================================================
 
-def build_session_query():
+def build_session_query(
+    user_session: UserSession,
+    food_master: pd.DataFrame,
+) -> str:
 
-    """
-    Menggabungkan seluruh makanan
-    yang disukai user dalam sesi saat ini.
-    """
+    query_parts = []
 
-    # --------------------------------------------------------
-    # NO LIKES
-    # --------------------------------------------------------
+    # ==========================================
+    # USER PREFERENCES
+    # ==========================================
 
-    if len(
+    # Taste Mood
+    for mood in user_session.selected_moods:
 
-        user_session.liked_foods
-
-    ) == 0:
-
-        return ""
-
-    # --------------------------------------------------------
-    # GET LIKED FOODS
-    # --------------------------------------------------------
-
-    liked_rows = food_master[
-
-        food_master["food_id"]
-
-        .isin(
-
-            user_session.liked_foods
-
+        query_parts.extend(
+            PREFERENCE_EXPANSION.get(
+                mood,
+                [mood]
+            )
         )
 
-    ]
+    # Food Type (paling penting)
+    for food_type in user_session.selected_food_types:
 
-    # --------------------------------------------------------
-    # BUILD QUERY
-    # --------------------------------------------------------
+        query_parts.extend(
+            PREFERENCE_EXPANSION.get(
+                food_type,
+                [food_type]
+            ) * 2
+        )
 
-    session_query = " ".join(
+    # Cuisine
+    for cuisine in user_session.selected_cuisines:
 
-        liked_rows["food_text"]
+        query_parts.extend(
+            PREFERENCE_EXPANSION.get(
+                cuisine,
+                [cuisine]
+            )
+        )
 
-        .tolist()
+    # Requirement
+    for req in user_session.selected_requirements:
 
-    )
+        query_parts.extend(
+            PREFERENCE_EXPANSION.get(
+                req,
+                [req]
+            )
+        )
+
+    print("\nEXPANDED QUERY:")
+
+    for item in query_parts:
+        print(item)
+
+    # ==========================================
+    # LEARNING FROM LIKED FOODS
+    # ==========================================
+
+    if user_session.liked_foods:
+
+        liked_rows = food_master[
+            food_master["food_id"].isin(
+                user_session.liked_foods
+            )
+        ]
+
+        print("\nLIKED FOODS:")
+        print(
+            liked_rows[
+                [
+                    "food_name",
+                    "food_type",
+                    "cuisine",
+                    "taste_mood",
+                    "requirement"
+                ]
+            ]
+        )
+
+        for _, row in liked_rows.iterrows():
+            
+            if row["food_name"]:
+                query_parts.extend(
+                    [row["food_name"]] * 3
+                )
+            
+            if row["food_type"]:
+                query_parts.extend(
+                    [row["food_type"]] * 4
+                )
+
+            if row["taste_mood"]:
+                query_parts.extend(
+                    [row["taste_mood"]] * 3
+                )
+
+
+    session_query = " ".join(query_parts)
+
+    print("\nSESSION QUERY:")
+    print(session_query)
 
     return session_query
+
+
 # ============================================================
-# CELL 10 — USER PREFERENCE VECTOR
+# CELL 9 — USER PREFERENCE VECTOR
 # ============================================================
 
-def build_user_vector():
-
+def build_user_vector(
+    user_session: UserSession,
+    food_master: pd.DataFrame,
+    tfidf,
+):
     """
-    Mengubah seluruh preferensi user
-    menjadi TF-IDF vector.
+    Mengubah session query menjadi TF-IDF vector user.
     """
 
-    session_query = (
-        build_session_query()
+    session_query = build_session_query(
+        user_session,
+        food_master
     )
 
-    # ========================================================
-    # FALLBACK TO UI PREFERENCES
-    # ========================================================
+    print("\n" + "="*70)
+    print("SESSION QUERY")
+    print("="*70)
+    print(session_query[:500])  # tampilkan 500 karakter pertama
+    print("="*70)
 
-    if len(session_query) == 0:
-
-        query_parts = []
-
-        for mood in user_session.selected_moods:
-
-            mood = mood.lower()
-
-            query_parts.append(mood)
-
-            query_parts.extend(
-                ATTRIBUTE_KEYWORDS.get(
-                    mood,
-                    []
-                )
-            )
-
-        for food_type in user_session.selected_food_types:
-
-            food_type = food_type.lower()
-
-            query_parts.append(food_type)
-
-            query_parts.extend(
-                ATTRIBUTE_KEYWORDS.get(
-                    food_type,
-                    []
-                )
-            )
-
-        for cuisine in user_session.selected_cuisines:
-
-            cuisine = cuisine.lower()
-
-            query_parts.append(cuisine)
-
-            query_parts.extend(
-                ATTRIBUTE_KEYWORDS.get(
-                    cuisine,
-                    []
-                )
-            )
-
-        session_query = " ".join(
-            query_parts
-        )
-
-    if len(session_query.strip()) == 0:
+    if not session_query:
         return None
 
-    user_vector = tfidf.transform(
-        [session_query]
-    )
+    print("BUILD USER VECTOR")
+    print("LIKED FOODS:", user_session.liked_foods)
 
-    return user_vector
+    return tfidf.transform([session_query])
+
+
 # ============================================================
-# CELL 11 — CANDIDATE RETRIEVAL ENGINE
+# CELL 10 — CANDIDATE RETRIEVAL ENGINE
 # ============================================================
 
 def retrieve_candidates(
-    top_k=300
-):
+    user_session: UserSession,
+    food_master: pd.DataFrame,
+    tfidf,
+    tfidf_matrix,
+    top_k: int = 50,
+) -> pd.DataFrame:
 
-    """
-    Mengambil kandidat makanan
-    berdasarkan preferensi sesi user.
-    """
-
-    user_vector = (
-        build_user_vector()
+    user_vector = build_user_vector(
+        user_session,
+        food_master,
+        tfidf
     )
 
     if user_vector is None:
-
         return pd.DataFrame()
 
-    # --------------------------------------------------------
-    # SIMILARITY
-    # --------------------------------------------------------
+    dislike_scores = np.zeros(len(food_master))
 
     similarity_scores = (
-
         cosine_similarity(
-
             user_vector,
-
             tfidf_matrix
-
         )
-
         .flatten()
-
     )
 
-    # --------------------------------------------------------
-    # CANDIDATES
-    # --------------------------------------------------------
+    # ==========================================
+    # DISLIKE VECTOR
+    # ==========================================
+    if user_session.disliked_foods:
 
-    candidates = (
-        food_master.copy()
+        disliked_rows = food_master[
+            food_master["food_id"].isin(
+                user_session.disliked_foods
+            )
+        ]
+
+        if not disliked_rows.empty:
+
+            dislike_text = " ".join(
+                disliked_rows["food_text"].tolist()
+            )
+
+            dislike_vector = tfidf.transform(
+                [dislike_text]
+            )
+
+            dislike_scores = (
+                cosine_similarity(
+                    dislike_vector,
+                    tfidf_matrix
+                )
+                .flatten()
+            )
+
+    # ==========================================
+    # BUILD FULL CANDIDATES FIRST
+    # ==========================================
+    candidates = food_master.copy()
+
+    candidates["similarity_score"] = similarity_scores
+    candidates["dislike_score"] = dislike_scores
+
+    candidates["final_score"] = (
+        candidates["similarity_score"]
+        - 0.5 * candidates["dislike_score"]
     )
 
-    candidates[
-        "similarity_score"
-    ] = similarity_scores
-
-    # --------------------------------------------------------
-    # REMOVE LIKED FOODS
-    # --------------------------------------------------------
+    # ==========================================
+    # REMOVE SWIPED FOODS
+    # ==========================================
+    excluded = (
+        set(user_session.liked_foods)
+        | set(user_session.disliked_foods)
+    )
 
     candidates = candidates[
-
-        ~candidates["food_id"]
-
-        .isin(
-
-            user_session.liked_foods
-
-        )
-
+        ~candidates["food_id"].isin(excluded)
     ]
 
-    # --------------------------------------------------------
-    # REMOVE DISLIKED FOODS
-    # --------------------------------------------------------
-
-    candidates = candidates[
-
-        ~candidates["food_id"]
-
-        .isin(
-
-            user_session.disliked_foods
-
-        )
-
-    ]
-
-    # --------------------------------------------------------
-    # SORT
-    # --------------------------------------------------------
-
-    candidates = (
-
-        candidates
-
-        .sort_values(
-
-            by="similarity_score",
-
-            ascending=False
-
-        )
-
-    )
-
-    return (
-
-        candidates
-
-        .head(top_k)
-
-        .reset_index(
-            drop=True
-        )
-
-    )
-# ============================================================
-# CELL 12 — FOOD ATTRIBUTE EXTRACTION
-# ============================================================
-
-ATTRIBUTE_KEYWORDS = {
-
-    # --------------------------------------------------------
-    # TASTE
-    # --------------------------------------------------------
-
-    "sweet": [
-
-        "sweet",
-        "honey",
-        "sugar",
-        "cake",
-        "cookie",
-        "dessert"
-
-    ],
-
-    "savory": [
-
-        "savory",
-        "beef",
-        "chicken",
-        "garlic",
-        "onion"
-
-    ],
-
-    "spicy": [
-
-        "spicy",
-        "chili",
-        "pepper",
-        "sambal"
-
-    ],
-
-    "cheesy": [
-
-        "cheese",
-        "cream",
-        "butter"
-
-    ],
-
-    "fresh": [
-
-        "salad",
-        "fruit",
-        "vegetable",
-        "fresh"
-
-    ],
-
-    # --------------------------------------------------------
-    # PROTEIN
-    # --------------------------------------------------------
-
-    "beef": [
-
-        "beef"
-
-    ],
-
-    "chicken": [
-
-        "chicken"
-
-    ],
-
-    "seafood": [
-
-        "fish",
-        "shrimp",
-        "crab",
-        "lobster",
-        "squid",
-        "salmon",
-        "tuna",
-        "octopus",
-        "anchovy",
-        "eel"
-    ],
-
-    # --------------------------------------------------------
-    # FOOD TYPE
-    # --------------------------------------------------------
-
-    "rice": [
-
-        "rice",
-        "nasi"
-
-    ],
-
-    "noodles": [
-
-        "noodle",
-        "ramen",
-        "udon",
-        "mie"
-
-    ],
-
-    "dessert": [
-
-        "dessert",
-        "cake",
-        "cookie",
-        "ice cream"
-
-    ],
-
-    "drink": [
-
-        "coffee",
-        "tea",
-        "juice",
-        "drink"
-
-    ],
-
-    "snack": [
-
-        "snack",
-        "chips"
-
-    ],
-
-    # --------------------------------------------------------
-    # CUISINE
-    # --------------------------------------------------------
-
-    "indonesian": [
-
-        "rendang",
-        "sambal",
-        "nasi",
-        "bakso",
-        "soto",
-        "rawon",
-        "gudeg",
-        "pecel",
-        "pempek",
-        "sate",
-        "ayam goreng",
-        "ayam bakar",
-        "nasi goreng"
-
-    ],
-
-    "korean": [
-
-        "kimchi",
-        "tteokbokki",
-        "bibimbap",
-        "bulgogi",
-        "jajangmyeon",
-        "japchae",
-        "samgyeopsal",
-        "dakgalbi"
-
-    ],
-
-    "japanese": [
-
-        "sushi",
-        "ramen",
-        "udon",
-        "sashimi",
-        "tempura",
-        "teriyaki",
-        "yakitori"
-
-    ],
-
-    "western": [
-
-        "burger",
-        "steak",
-        "western"
-
-    ],
-
-    "italian": [
-
-        "pizza",
-        "pasta",
-        "italian"
-
-    ]
-
-}
-
-# ============================================================
-# ATTRIBUTE EXTRACTION
-# ============================================================
-
-def extract_food_attributes(
-    food_text
-):
-
-    food_text = str(
-        food_text
-    ).lower()
-
-    attributes = []
-
-    for attribute, keywords in (
-
-        ATTRIBUTE_KEYWORDS.items()
-
-    ):
-
-        for keyword in keywords:
-
-            if keyword in food_text:
-
-                attributes.append(
-                    attribute
+    # ==========================================
+    # ALLERGY FILTER
+    # ==========================================
+
+    print("\n===== ALLERGY DEBUG =====")
+    print("ALLERGIES:", user_session.allergies)
+    print("TOTAL CANDIDATES BEFORE:", len(candidates))
+
+    if user_session.allergies:
+
+        for allergy in user_session.allergies:
+
+            print(f"\nFiltering allergy: {allergy}")
+
+            matched = candidates[
+                candidates["food_text"]
+                .str.contains(
+                    allergy,
+                    case=False,
+                    na=False,
+                    regex=False
+                )
+            ]
+
+            print("FOUND:", len(matched))
+
+            if not matched.empty:
+                print(
+                    matched[
+                        ["food_name", "food_text"]
+                    ].head(10)
                 )
 
-                break
+            candidates = candidates[
+                ~candidates["food_text"]
+                .str.contains(
+                    allergy,
+                    case=False,
+                    na=False,
+                    regex=False
+                )
+            ]
 
-    return attributes
+    print("TOTAL CANDIDATES AFTER:", len(candidates))
+    print("=========================\n")
+    
+    # ==========================================
+    # HARD FILTER CUISINE
+    # ==========================================
+    if user_session.selected_cuisines:
+
+        selected_cuisine = (
+            user_session.selected_cuisines[0]
+            .lower()
+        )
+
+        cuisine_candidates = candidates[
+            candidates["origin_country"]
+            .fillna("")
+            .str.lower()
+            == selected_cuisine
+        ]
+
+        print(
+            "\nAVAILABLE COUNTRIES:"
+        )
+
+        print(
+            candidates["origin_country"]
+            .value_counts()
+        )
+
+        print(
+            "SELECTED:",
+            selected_cuisine
+        )
+
+        print(
+            "FOUND:",
+            len(cuisine_candidates)
+        )
+
+        # Pakai filter jika masih ada kandidat
+        if len(cuisine_candidates) > 0:
+
+            print(
+                f"[CUISINE FILTER] "
+                f"{selected_cuisine}"
+            )
+
+            candidates = cuisine_candidates
+
+        else:
+
+            print(
+                "[CUISINE FILTER] "
+                "Fallback all countries"
+            )
+
+    # ==========================================
+    # REQUIREMENT FILTER
+    # ==========================================
+    '''if "Vegetarian" in user_session.selected_requirements:
+
+        candidates = candidates[
+            candidates["requirement"]
+            == "vegetarian"
+        ]
+
+    if "High Protein" in user_session.selected_requirements:
+
+        candidates = candidates[
+            candidates["requirement"]
+            == "high_protein"
+        ]'''
+
+    # ==========================================
+    # DEBUG
+    # ==========================================
+    print("\n" + "=" * 70)
+    print("RETRIEVE CANDIDATES")
+    print("=" * 70)
+
+    print("LIKED:", user_session.liked_foods)
+    print("DISLIKED:", user_session.disliked_foods)
+
+    top_preview = (
+        candidates
+        .sort_values(
+            by="final_score",
+            ascending=False
+        )
+        .head(10)
+    )
+
+    print("\nTOP 10 FINAL RANKING")
+
+    for _, row in top_preview.iterrows():
+
+        print(
+            f"- {row['food_name']} | "
+            f"country={row['origin_country']} | "
+            f"sim={row['similarity_score']:.4f} | "
+            f"final={row['final_score']:.4f}"
+        )
+
+    print("=" * 70)
+
+    return (
+        candidates
+        .sort_values(
+            by="final_score",
+            ascending=False
+        )
+        .head(top_k)
+        .reset_index(drop=True)
+    )
+
+
 # ============================================================
-# CELL 13 — TODAY'S TASTE PROFILE
+# CELL 11 — TODAY'S TASTE PROFILE
 # ============================================================
 
-def build_today_taste_profile():
-
+def build_today_taste_profile(
+    user_session: UserSession,
+    food_master:  pd.DataFrame,
+) -> dict:
     """
-    Membangun profil selera harian
-    berdasarkan makanan yang di-like
-    selama sesi berlangsung.
+    Membangun profil selera harian berdasarkan
+    makanan yang di-like selama sesi berlangsung.
     """
 
     profile = defaultdict(float)
 
-    # --------------------------------------------------------
-    # NO LIKES
-    # --------------------------------------------------------
-
-    if len(
-
-        user_session.liked_foods
-
-    ) == 0:
-
+    if not user_session.liked_foods:
         return {}
-
-    # --------------------------------------------------------
-    # GET LIKED FOODS
-    # --------------------------------------------------------
 
     liked_rows = food_master[
-
-        food_master["food_id"]
-
-        .isin(
-
-            user_session.liked_foods
-
-        )
-
+        food_master["food_id"].isin(user_session.liked_foods)
     ]
 
-    # --------------------------------------------------------
-    # EXTRACT ATTRIBUTES
-    # --------------------------------------------------------
+    print("\nLIKED IDS:")
+    print(user_session.liked_foods)
 
-    for _, row in liked_rows.iterrows():
+    print("\nLIKED ROWS FOUND:")
+    print(len(liked_rows))
 
-        attributes = (
-
-            extract_food_attributes(
-
-                row["food_text"]
-
-            )
-
+    if not liked_rows.empty:
+        print(
+            liked_rows[
+                ["food_id", "food_name"]
+            ].to_string()
         )
-
-        for attribute in attributes:
-
+    
+    for _, row in liked_rows.iterrows():
+        for attribute in extract_food_attributes(row["food_text"]):
             profile[attribute] += 1
 
-    # --------------------------------------------------------
-    # NORMALIZE
-    # --------------------------------------------------------
-
-    if len(profile) == 0:
-
+    if not profile:
         return {}
 
-    max_score = max(
+    max_score = max(profile.values())
+    return {k: v / max_score for k, v in profile.items()}
 
-        profile.values()
-
-    )
-
-    for attribute in profile:
-
-        profile[attribute] /= max_score
-
-    return dict(profile)
 
 # ============================================================
-# BUILD PROFILE
-# ============================================================
-
-user_session.today_taste_profile = (
-
-    build_today_taste_profile()
-
-)
-
-# ============================================================
-# CELL 14 — UI PREFERENCE PROFILE
+# CELL 12 — UI PREFERENCE PROFILE
 # ============================================================
 
 MOOD_MAPPING = {
-
-    "spicy": [
-        "spicy"
-    ],
-
-    "sweet": [
-        "sweet"
-    ],
-
-    "savory": [
-        "savory"
-    ],
-
-    "cheesy": [
-        "cheesy"
-    ],
-
-    "fresh": [
-        "fresh"
-    ]
+    "spicy":  ["spicy"],
+    "sweet":  ["sweet"],
+    "savory": ["savory"],
+    "cheesy": ["cheesy"],
+    "fresh":  ["fresh"],
 }
 
 FOOD_TYPE_MAPPING = {
-
-    "rice": [
-        "rice"
-    ],
-
-    "noodles": [
-        "noodles"
-    ],
-
-    "snack": [
-        "snack"
-    ],
-
-    "dessert": [
-        "dessert"
-    ],
-
-    "drink": [
-        "drink"
-    ]
+    "rice":    ["rice"],
+    "noodles": ["noodles"],
+    "snack":   ["snack"],
+    "dessert": ["dessert"],
+    "drink":   ["drink"],
 }
 
 CUISINE_MAPPING = {
-
-    "indonesian": [
-        "indonesian"
-    ],
-
-    "korean": [
-        "korean"
-    ],
-
-    "japanese": [
-        "japanese"
-    ],
-
-    "western": [
-        "western"
-    ],
-
-    "italian": [
-        "italian"
-    ]
+    "indonesian": ["indonesian"],
+    "korean":     ["korean"],
+    "japanese":   ["japanese"],
+    "western":    ["western"],
+    "italian":    ["italian"],
 }
 
-# ============================================================
-# CUISINE FILTER
-# ============================================================
 
-def apply_cuisine_filter(candidates):
-
-    if candidates.empty:
-        return candidates
-
-    filtered = candidates.copy()
-
-    if len(user_session.selected_cuisines) == 0:
-        return filtered
-
-    selected = [
-
-        cuisine.lower()
-
-        for cuisine in
-
-        user_session.selected_cuisines
-
-    ]
-
-    filtered = filtered[
-
-        filtered["cuisine"]
-
-        .isin(selected)
-
-    ]
-
-    return filtered.reset_index(drop=True)
-
-# ============================================================
-# FOOD TYPE FILTER
-# ============================================================
-
-def apply_food_type_filter(candidates):
-
-    if candidates.empty:
-        return candidates
-
-    filtered = candidates.copy()
-
-    if len(user_session.selected_food_types) == 0:
-        return filtered
-
-    selected = [
-
-        food_type.lower()
-
-        for food_type in
-
-        user_session.selected_food_types
-
-    ]
-
-    filtered = filtered[
-
-        filtered["food_type"]
-
-        .isin(selected)
-
-    ]
-
-    return filtered.reset_index(drop=True)
-# ============================================================
-# BUILD UI PROFILE
-# ============================================================
-
-def build_ui_preference_profile():
-
+def build_ui_preference_profile(user_session: UserSession) -> dict:
     profile = defaultdict(float)
 
-    # --------------------------------------------------------
-    # TASTE MOOD
-    # --------------------------------------------------------
-
     for mood in user_session.selected_moods:
+        for attr in MOOD_MAPPING.get(mood.lower(), []):
+            profile[attr] += 1
 
-        mood = mood.lower()
+    for food_type in user_session.selected_food_types:
+        for attr in FOOD_TYPE_MAPPING.get(food_type.lower(), []):
+            profile[attr] += 1
 
-        for attribute in (
-
-            MOOD_MAPPING.get(
-                mood,
-                []
-            )
-
-        ):
-
-            profile[
-                attribute
-            ] += 1
-
-    # --------------------------------------------------------
-    # FOOD TYPE
-    # --------------------------------------------------------
-
-    for food_type in (
-
-        user_session
-        .selected_food_types
-
-    ):
-
-        food_type = food_type.lower()
-
-        for attribute in (
-
-            FOOD_TYPE_MAPPING.get(
-                food_type,
-                []
-            )
-
-        ):
-
-            profile[
-                attribute
-            ] += 1
-
-    # --------------------------------------------------------
-    # CUISINE
-    # --------------------------------------------------------
-
-    for cuisine in (
-
-        user_session
-        .selected_cuisines
-
-    ):
-
-        cuisine = cuisine.lower()
-
-        for attribute in (
-
-            CUISINE_MAPPING.get(
-                cuisine,
-                []
-            )
-
-        ):
-
-            profile[
-                attribute
-            ] += 1
+    for cuisine in user_session.selected_cuisines:
+        for attr in CUISINE_MAPPING.get(cuisine.lower(), []):
+            profile[attr] += 1
 
     return dict(profile)
+
+
 # ============================================================
-# CELL 15 — FOOD REQUIREMENT FILTER
+# CELL 13 — FOOD REQUIREMENT FILTER
 # ============================================================
 
 def apply_food_requirement_filter(
-    candidates
-):
+    candidates:   pd.DataFrame,
+    user_session: UserSession,
+) -> pd.DataFrame:
 
-    if candidates.empty:
-        return candidates
-
-    filtered = (
-        candidates.copy()
-    )
-
-    requirements = [
-
-        req.lower()
-
-        for req in
-
-        user_session
-        .selected_requirements
-
-    ]
-
-    # --------------------------------------------------------
-    # HALAL
-    # --------------------------------------------------------
+    filtered     = candidates.copy()
+    requirements = [r.lower() for r in user_session.selected_requirements]
 
     if "halal" in requirements:
-
-        haram_keywords = [
-
-            "pork",
-            "ham",
-            "bacon",
-            "wine",
-            "beer"
-
-        ]
-
-        mask = ~filtered[
-            "food_text"
-        ].str.contains(
-
-            "|".join(
-                haram_keywords
-            ),
-
-            case=False,
-
-            na=False
-
+        haram = ["pork", "ham", "bacon", "wine", "beer"]
+        mask  = ~filtered["food_text"].str.contains(
+            "|".join(haram), case=False, na=False
         )
-
-        filtered = filtered[
-            mask
-        ]
-
-    # --------------------------------------------------------
-    # VEGETARIAN
-    # --------------------------------------------------------
+        filtered = filtered[mask]
 
     if "vegetarian" in requirements:
-
-        meat_keywords = [
-
-            "beef",
-            "chicken",
-            "pork",
-            "fish",
-            "shrimp",
-            "crab",
-            "lobster",
-            "squid"
-
-        ]
-
-        mask = ~filtered[
-            "food_text"
-        ].str.contains(
-
-            "|".join(
-                meat_keywords
-            ),
-
-            case=False,
-
-            na=False
-
+        meat = ["beef", "chicken", "pork", "fish", "shrimp", "crab", "lobster", "squid"]
+        mask = ~filtered["food_text"].str.contains(
+            "|".join(meat), case=False, na=False
         )
-
-        filtered = filtered[
-            mask
-        ]
-
-    # --------------------------------------------------------
-    # NO SEAFOOD
-    # --------------------------------------------------------
+        filtered = filtered[mask]
 
     if "no seafood" in requirements:
-
-        seafood_keywords = [
-
-            "fish",
-            "shrimp",
-            "crab",
-            "lobster",
-            "squid",
-            "salmon",
-            "tuna",
-            "cod",
-            "octopus",
-            "anchovy",
-            "eel"
-        ]
-
-        mask = ~filtered[
-            "food_text"
-        ].str.contains(
-
-            "|".join(
-                seafood_keywords
-            ),
-
-            case=False,
-
-            na=False
-
+        seafood = ["fish", "shrimp", "crab", "lobster", "squid"]
+        mask    = ~filtered["food_text"].str.contains(
+            "|".join(seafood), case=False, na=False
         )
+        filtered = filtered[mask]
 
-        filtered = filtered[
-            mask
-        ]
-
-    return (
-
-        filtered
-
-        .reset_index(
-            drop=True
-        )
-
-    )
-
-# ============================================================
-# FILTER PIPELINE
-# ============================================================
-
-def apply_all_filters(candidates):
-
-    candidates = apply_cuisine_filter(
-        candidates
-    )
-
-    candidates = apply_food_type_filter(
-        candidates
-    )
-
-    candidates = apply_food_requirement_filter(
-        candidates
-    )
-
-    return candidates
-
+    return filtered.reset_index(drop=True)
 
 
 # ============================================================
-# CELL 16 — SHOW MY RECOMMENDATIONS
+# CELL 14 — SHOW MY RECOMMENDATIONS
 # ============================================================
 
 def show_my_recommendations(
-    candidates,
-    top_n=10
-):
-
-    recommendations = (
-        candidates.copy()
+    candidates: pd.DataFrame,
+    user_session: UserSession,
+    food_master: pd.DataFrame,
+    top_n: int = 10,
+) -> pd.DataFrame:
+    recommendations = candidates.copy()
+    ui_profile = build_ui_preference_profile(
+        user_session
     )
-
-    ui_profile = (
-        build_ui_preference_profile()
+    taste_profile = build_today_taste_profile(
+        user_session,
+        food_master
     )
-
     taste_scores = []
-
-    # --------------------------------------------------------
-    # SCORING
-    # --------------------------------------------------------
-
     for _, row in recommendations.iterrows():
-
-        attributes = (
-
-            extract_food_attributes(
-
-                row["food_text"]
-
-            )
-
+        attributes = extract_food_attributes(
+            row["food_text"]
         )
-
         score = 0
-
-        # ----------------------------------------------------
-        # TODAY'S TASTE PROFILE
-        # ----------------------------------------------------
-
-        for attribute in attributes:
-
-            score += (
-
-                user_session
-                .today_taste_profile
-                .get(
-                    attribute,
-                    0
-                )
-
-            )
-
-        # ----------------------------------------------------
-        # UI PROFILE
-        # ----------------------------------------------------
-
-        for attribute in attributes:
-
-            score += (
-
-                ui_profile
-                .get(
-                    attribute,
-                    0
-                )
-
-            )
-
-        taste_scores.append(
-            score
-        )
-
-    recommendations[
-        "taste_score"
-    ] = taste_scores
-
-    # --------------------------------------------------------
-    # FINAL SCORE
-    # --------------------------------------------------------
-
-    recommendations[
-        "final_score"
-    ] = (
-
-        recommendations[
-            "similarity_score"
-        ] * 0.4
-
-        +
-
-        recommendations[
-            "taste_score"
-        ] * 0.6
-
+        for attr in attributes:
+            score += taste_profile.get(attr, 0)
+            score += ui_profile.get(attr, 0)
+        taste_scores.append(score)
+    # simpan dulu
+    recommendations["taste_score"] = taste_scores
+    # normalisasi
+    max_taste = max(
+        recommendations["taste_score"].max(),
+        1
     )
-
-    # --------------------------------------------------------
-    # SORT
-    # --------------------------------------------------------
-
-    recommendations = (
-
+    recommendations["taste_score_norm"] = (
+        recommendations["taste_score"]
+        / max_taste
+    )
+    # ranking akhir
+    recommendations["ranking_score"] = (
+        recommendations["final_score"] * 0.85
+        + recommendations["taste_score_norm"] * 0.15
+    )
+    return (
         recommendations
-
         .sort_values(
-
-            by="final_score",
-
+            by="ranking_score",
             ascending=False
-
         )
-
         .head(top_n)
-
-        .reset_index(
-            drop=True
-        )
-
+        .reset_index(drop=True)
     )
-
-    return recommendations
-
-"""
 # ============================================================
-# CELL 17 — EVALUATION DATASET BUILDER
+# CELL 15 — PUBLIC API (dipakai oleh app.py)
 # ============================================================
 
-print(
-    "Building evaluation dataset..."
-)
-
-# ------------------------------------------------------------
-# FILTER VALID RATINGS
-# ------------------------------------------------------------
-
-evaluation_df = (
-
-    df_interactions
-
-    .copy()
-
-)
-
-# ------------------------------------------------------------
-# POSITIVE INTERACTIONS ONLY
-# ------------------------------------------------------------
-
-evaluation_df = evaluation_df[
-
-    evaluation_df["rating"] >= 4
-
-]
-
-# ------------------------------------------------------------
-# MINIMUM INTERACTIONS
-# ------------------------------------------------------------
-
-user_counts = (
-
-    evaluation_df
-
-    .groupby("user_id")
-
-    .size()
-
-)
-
-valid_users = (
-
-    user_counts[
-        user_counts >= 5
-    ]
-
-    .index
-
-)
-
-evaluation_df = (
-
-    evaluation_df[
-
-        evaluation_df["user_id"]
-
-        .isin(valid_users)
-
-    ]
-
-)
-
-# ------------------------------------------------------------
-# BUILD EVALUATION USERS
-# ------------------------------------------------------------
-
-evaluation_users = []
-
-for user_id, group in (
-
-    evaluation_df.groupby(
-        "user_id"
-    )
-
-):
-
-    foods = (
-
-        group["recipe_id"]
-
-        .tolist()
-
-    )
-
-    foods = list(
-
-        dict.fromkeys(
-            foods
-        )
-
-    )
-
-    if len(foods) < 5:
-
-        continue
-
-    train_foods = foods[:-1]
-
-    test_food = foods[-1]
-
-    evaluation_users.append({
-
-        "user_id":
-            user_id,
-
-        "train_foods":
-            train_foods,
-
-        "test_food":
-            test_food
-
-    })
-
-# ------------------------------------------------------------
-# TO DATAFRAME
-# ------------------------------------------------------------
-
-evaluation_users = pd.DataFrame(
-    evaluation_users
-)
-
-print()
-
-print(
-    f"Evaluation Users : {len(evaluation_users):,}"
-)
-
-print()
-
-print(
-    evaluation_users.head()
-)
-"""
-# ============================================================
-# CELL 18 — EVALUATION VECTOR BUILDER
-# ============================================================
-
-def build_evaluation_query(
-    train_foods
-):
-
+def get_top_recommendations(
+    user_session: UserSession,
+    food_master:  pd.DataFrame,
+    tfidf,
+    tfidf_matrix,
+    top_n: int = 10,
+) -> list[dict]:
     """
-    Membangun session query
-    untuk user evaluasi.
+    Fungsi utama yang dipanggil dari app.py.
+    Mengembalikan list rekomendasi makanan dalam format dict.
     """
+    # Ambil kandidat berdasarkan cosine similarity
+    candidates = retrieve_candidates(
+        user_session, food_master, tfidf, tfidf_matrix, top_k=50
+    )
+    if candidates.empty:
+        return []
+    # Filter requirement (halal, vegetarian, dll.)
+    filtered = apply_food_requirement_filter(candidates, user_session)
+    if filtered.empty:
+        filtered = candidates  # fallback jika semua tersaring
+    # Ranking akhir
+    recommendations = show_my_recommendations(
+        filtered, user_session, food_master, top_n=top_n
+    )
+    print("="*50)
+    print("GET_TOP_RECOMMENDATIONS CALLED")
+    print("LIKED:", user_session.liked_foods)
+    print("="*50)
+    return recommendations[[
+        "food_id",
+        "food_name",
+        "food_type",
+        "cuisine",
+        "taste_mood",
+        "similarity_score",
+        "taste_score",
+        "final_score",
+    ]].to_dict(orient="records")
+def decide_match(
+    food_id:      int,
+    action:       str,           # "like" | "dislike"
+    user_session: UserSession,
+    food_master:  pd.DataFrame,
+) -> dict:
+    """
+    Mencatat aksi swipe user (like/dislike)
+    dan memperbarui taste profile.
+    """
+
+    if action == "like":
+        user_session.add_like(food_id)
+    else:
+        user_session.add_dislike(food_id)
+
+    # Update taste profile setelah setiap swipe
+    user_session.today_taste_profile = build_today_taste_profile(
+        user_session, food_master
+    )
+
+    return {
+        "food_id": food_id,
+        "action":  action,
+        "session": user_session.summary(),
+    }
+    
+def get_liked_foods_scores(
+    user_session: UserSession,
+    food_master: pd.DataFrame,
+    tfidf,
+    tfidf_matrix,
+) -> list[dict]:
+    """
+    Menghitung final_score untuk makanan yang sudah di-like,
+    digunakan khusus untuk Force Match logic.
+    """
+    if not user_session.liked_foods:
+        return []
+
+    user_vector = build_user_vector(user_session, food_master, tfidf)
+    if user_vector is None:
+        return []
 
     liked_rows = food_master[
+        food_master["food_id"].isin(user_session.liked_foods)
+    ].copy()
 
-        food_master["food_id"]
+    if liked_rows.empty:
+        return []
 
-        .isin(
-            train_foods
-        )
+    # Hitung similarity score untuk liked foods saja
+    liked_indices = liked_rows.index.tolist()
+    liked_matrix = tfidf_matrix[liked_indices]
 
-    ]
-
-    if len(liked_rows) == 0:
-
-        return ""
-
-    query = " ".join(
-
-        liked_rows["food_text"]
-
-        .tolist()
-
+    similarity_scores = (
+        cosine_similarity(user_vector, liked_matrix).flatten()
     )
 
-    return query
-
-
-def build_evaluation_vector(
-    train_foods
-):
-
-    """
-    Mengubah train foods
-    menjadi TF-IDF vector.
-    """
-
-    query = (
-
-        build_evaluation_query(
-            train_foods
-        )
-
-    )
-
-    if len(query) == 0:
-
-        return None
-
-    vector = tfidf.transform(
-
-        [query]
-
-    )
-
-    return vector
-
-# ============================================================
-# CELL 19 — HITRATE@K
-# ============================================================
-
-def hit_rate_at_k(
-
-    evaluation_users,
-
-    k=10,
-
-    sample_size=200
-
-):
-
-    """
-    Menghitung HitRate@K.
-    """
-
-    hits = 0
-
-    total_users = 0
-
-    evaluation_sample = (
-
-        evaluation_users
-
-        .sample(
-
-            min(
-                sample_size,
-                len(evaluation_users)
-            ),
-
-            random_state=RANDOM_STATE
-
-        )
-
-    )
-
-    for _, row in (
-
-        evaluation_sample.iterrows()
-
-    ):
-
-        train_foods = row["train_foods"]
-
-        test_food = row["test_food"]
-
-        # ----------------------------------------------------
-        # BUILD VECTOR
-        # ----------------------------------------------------
-
-        user_vector = (
-
-            build_evaluation_vector(
-
-                train_foods
-
-            )
-
-        )
-
-        if user_vector is None:
-
-            continue
-
-        # ----------------------------------------------------
-        # RETRIEVE
-        # ----------------------------------------------------
-
-        similarity_scores = (
-
-            cosine_similarity(
-
-                user_vector,
-
-                tfidf_matrix
-
-            )
-
-            .flatten()
-
-        )
-
-        recommendations = (
-
-            food_master.copy()
-
-        )
-
-        recommendations[
-            "similarity_score"
-        ] = similarity_scores
-
-        recommendations = recommendations[
-
-            ~recommendations["food_id"]
-
-            .isin(
-                train_foods
-            )
-
-        ]
-
-        recommendations = (
-
-            recommendations
-
-            .sort_values(
-
-                by="similarity_score",
-
-                ascending=False
-
-            )
-
-            .head(k)
-
-        )
-
-        recommended_ids = (
-
-            recommendations[
-                "food_id"
-            ]
-
-            .tolist()
-
-        )
-
-        # ----------------------------------------------------
-        # HIT
-        # ----------------------------------------------------
-
-        if test_food in recommended_ids:
-
-            hits += 1
-
-        total_users += 1
-
-    if total_users == 0:
-
-        return 0
-
-    return hits / total_users
-# ============================================================
-# CELL 20 — PRECISION@K
-# ============================================================
-
-def precision_at_k(
-
-    evaluation_users,
-
-    k=10,
-
-    sample_size=200
-
-):
-
-    """
-    Menghitung Precision@K.
-    """
-
-    precision_scores = []
-
-    evaluation_sample = (
-
-        evaluation_users
-
-        .sample(
-
-            min(
-                sample_size,
-                len(evaluation_users)
-            ),
-
-            random_state=RANDOM_STATE
-
-        )
-
-    )
-
-    for _, row in (
-
-        evaluation_sample.iterrows()
-
-    ):
-
-        train_foods = row["train_foods"]
-
-        test_food = row["test_food"]
-
-        # ----------------------------------------------------
-        # BUILD VECTOR
-        # ----------------------------------------------------
-
-        user_vector = (
-
-            build_evaluation_vector(
-
-                train_foods
-
-            )
-
-        )
-
-        if user_vector is None:
-
-            continue
-
-        # ----------------------------------------------------
-        # RETRIEVE
-        # ----------------------------------------------------
-
-        similarity_scores = (
-
-            cosine_similarity(
-
-                user_vector,
-
-                tfidf_matrix
-
-            )
-
-            .flatten()
-
-        )
-
-        recommendations = (
-
-            food_master.copy()
-
-        )
-
-        recommendations[
-            "similarity_score"
-        ] = similarity_scores
-
-        recommendations = recommendations[
-
-            ~recommendations["food_id"]
-
-            .isin(
-                train_foods
-            )
-
-        ]
-
-        recommendations = (
-
-            recommendations
-
-            .sort_values(
-
-                by="similarity_score",
-
-                ascending=False
-
-            )
-
-            .head(k)
-
-        )
-
-        recommended_ids = (
-
-            recommendations[
-                "food_id"
-            ]
-
-            .tolist()
-
-        )
-
-        # ----------------------------------------------------
-        # PRECISION
-        # ----------------------------------------------------
-
-        relevant_items = 0
-
-        if test_food in recommended_ids:
-
-            relevant_items = 1
-
-        precision_scores.append(
-
-            relevant_items / k
-
-        )
-
-    if len(precision_scores) == 0:
-
-        return 0
-
-    return np.mean(
-        precision_scores
-    )
-
-# ============================================================
-# CELL 21 — RECOMMENDATION QUALITY ANALYSIS
-# ============================================================
-
-def analyze_recommendation_quality(
-
-    top_n=10
-
-):
-
-    recommendations = (
-
-        show_my_recommendations(
-
-            filtered_candidates,
-
-            top_n=top_n
-
-        )
-
-    )
-
-    print(
-        "=" * 80
-    )
-
-    print(
-        "USER SESSION SUMMARY"
-    )
-
-    print(
-        "=" * 80
-    )
-
-    print()
-
-    print(
-        "Liked Foods:"
-    )
-
-    liked_rows = food_master[
-
-        food_master["food_id"]
-
-        .isin(
-
-            user_session.liked_foods
-
-        )
-
-    ]
-
-    print(
-
-        liked_rows[
-            "food_name"
-        ]
-
-        .tolist()
-
-    )
-
-    print()
-
-    print(
-        "Today's Taste Profile:"
-    )
-
-    print(
-        user_session.today_taste_profile
-    )
-
-    print()
-
-    print(
-        "UI Preference Profile:"
-    )
-
-    print(
-        build_ui_preference_profile()
-    )
-
-    print()
-
-    print(
-        "=" * 80
-    )
-
-    print(
-        "TOP RECOMMENDATIONS"
-    )
-
-    print(
-        "=" * 80
-    )
-
-    print()
-
-    for rank, (_, row) in enumerate(
-
-        recommendations.iterrows(),
-
-        start=1
-
-    ):
-
-        attributes = (
-
-            extract_food_attributes(
-
-                row["food_text"]
-
-            )
-
-        )
-
-        print(
-
-            f"{rank}. {row['food_name']}"
-
-        )
-
-        print(
-
-            f"   Similarity Score : "
-            f"{row['similarity_score']:.4f}"
-
-        )
-
-        print(
-
-            f"   Taste Score      : "
-            f"{row['taste_score']:.4f}"
-
-        )
-
-        print(
-
-            f"   Final Score      : "
-            f"{row['final_score']:.4f}"
-
-        )
-
-        print(
-
-            f"   Attributes       : "
-            f"{attributes}"
-
-        )
-        print()
-    return recommendations
+    liked_rows = liked_rows.reset_index(drop=True)
+    liked_rows["similarity_score"] = similarity_scores
+    liked_rows["final_score"] = similarity_scores  # tidak ada dislike penalty
+
+    return liked_rows[[
+        "food_id", "food_name", "final_score", "similarity_score"
+    ]].to_dict(orient="records")
